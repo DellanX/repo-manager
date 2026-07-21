@@ -4,6 +4,12 @@
 
 This document defines required tests for each module-level specification.
 
+## Coverage Objective
+
+- Test suites must achieve 100% line coverage for in-scope source files.
+- Any uncovered line must be explicitly justified with a documented exception record.
+- Uncovered lines without an approved justification are blocking defects.
+
 ## Test Layers
 
 1. Unit tests
@@ -47,3 +53,5 @@ This document defines required tests for each module-level specification.
 - Security tests required for merge.
 - Contract tests required for API changes.
 - Traceability matrix row must reference at least one test ID.
+- Coverage gate requires 100% line coverage for in-scope source files.
+- Coverage exceptions must include rationale, risk, owner, and review date in PR documentation.
