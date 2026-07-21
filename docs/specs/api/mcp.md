@@ -37,6 +37,9 @@ Error behavior:
 - Required args per tool are mandatory.
 - Optional args for push default to `remote='origin'` and `branch='main'`.
 - Values are currently cast to string in handlers.
+- Tool args should be modeled with explicit Pydantic schemas per tool contract; avoid generic `object`/`Any` argument shapes in handler logic.
+- Unknown or extra fields should be rejected by schema configuration unless a documented compatibility reason requires permissive parsing.
+- Typed boundary linting and exception handling must follow `docs/specs/linting/typed_boundaries.md`.
 
 ## Agent Usage Notes
 

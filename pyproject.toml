@@ -1,0 +1,28 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes correctness checks
+  "I",    # import sorting and hygiene
+  "B",    # bugbear anti-pattern checks
+  "BLE",  # broad-except detection
+  "UP",   # pyupgrade checks
+  "SIM",  # simplification checks
+  "C4",   # comprehensions checks
+  "PGH003", # blanket type: ignore checks
+  "PGH004", # blanket noqa checks
+]
+
+# Keep suppressions localized and explicit.
+ignore = []

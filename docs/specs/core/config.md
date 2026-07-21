@@ -22,3 +22,13 @@ Source module: `src/core/config.py`
 - Reject empty or whitespace-only workspace values.
 - Reject paths that cannot be created or accessed.
 - Emit startup failure with clear operator-facing message.
+
+## Type Linting Exceptions
+
+When an exception to typed boundary linting rules is required, record it here with:
+
+- File and symbol location.
+- Rationale for why explicit Pydantic modeling is not viable.
+- Risk and mitigation.
+- Owner and review date.
+- Tracking issue or ADR reference.

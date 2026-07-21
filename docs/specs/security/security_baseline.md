@@ -39,6 +39,11 @@ This is a mandatory baseline. New features must satisfy these controls before me
 - Webhook targets must enforce SSRF protections (allowlist and network boundary policy).
 - Webhook payloads must be signed and signature algorithm documented.
 
+9. Typed boundary validation
+- Untrusted inbound data must be validated at the API boundary using explicit Pydantic models.
+- Generic untyped payload handling (for example `Any`/`unknown`-style structures passed through layers) is forbidden unless explicitly documented and risk-assessed.
+- Typed boundary static checks and exceptions must follow `docs/specs/linting/typed_boundaries.md`.
+
 ## Test Requirements
 
 - Traversal rejection tests for read and write paths.
@@ -46,3 +51,9 @@ This is a mandatory baseline. New features must satisfy these controls before me
 - Input-size boundary tests.
 - Redaction checks for logs/events.
 - Unauthorized access tests once auth is introduced.
+
+## Linting and Exception Requirements
+
+- Lint/type checks must enforce typed boundaries for inbound payload handling.
+- Exceptions to typed-boundary rules must be documented in `docs/specs/core/config.md` under `Type Linting Exceptions`.
+- Exception records must include rationale, risk mitigation, owner, and review date.

@@ -54,3 +54,5 @@ Until migration, tests must verify current behavior and track migration as a com
 - Route handlers must call only service-layer functions.
 - `OperationError` must map to deterministic 4xx status codes.
 - File path handling must comply with security baseline.
+- Request bodies must be validated by explicit Pydantic request models; raw `dict`/`Any` payload handling in route handlers is not allowed.
+- Typed boundary linting and exception handling must follow `docs/specs/linting/typed_boundaries.md`.

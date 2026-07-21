@@ -27,3 +27,11 @@
 
 - `security/security_baseline.md`
 - `security/credential_management.md`
+
+## Linting
+
+- `linting/README.md`
+- `linting/baseline.md`
+- `linting/python.md`
+- `linting/exceptions.md`
+- `linting/typed_boundaries.md`
