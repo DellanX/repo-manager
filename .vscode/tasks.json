@@ -30,6 +30,13 @@
         "panel": "dedicated",
         "clear": false
       }
+    },
+    {
+      "label": "Lint Python (ruff)",
+      "type": "shell",
+      "command": "python -m ruff check src tests",
+      "group": "build",
+      "problemMatcher": []
     }
   ]
 }
