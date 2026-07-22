@@ -30,7 +30,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: python -m pip install --no-cache-dir -r requirements.txt
+        run: python -m pip install -r requirements.txt
 
       - name: Run ruff linter
         run: python -m ruff check src tests
@@ -55,7 +55,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: python -m pip install --no-cache-dir -r requirements.txt
+        run: python -m pip install -r requirements.txt
 
       - name: Install package in editable mode
         run: python -m pip install -e .
