@@ -64,3 +64,4 @@ jobs:
         run: python -m pytest -q
         env:
           PYTHONPATH: ${{ github.workspace }}
+          REPO_MANAGER_WORKSPACE: ${{ runner.temp }}/workspace
