@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 
 
 def test_t_config_default_workspace_value(monkeypatch) -> None:
@@ -10,7 +11,7 @@ def test_t_config_default_workspace_value(monkeypatch) -> None:
     module = importlib.import_module("src.core.config")
     module = importlib.reload(module)
 
-    assert module.WORKSPACE == "/workspace"
+    assert module.WORKSPACE == os.getcwd()
 
 
 def test_t_config_env_override_workspace(monkeypatch) -> None:
