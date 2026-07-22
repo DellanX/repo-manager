@@ -11,7 +11,7 @@ def test_t_config_default_workspace_value(monkeypatch) -> None:
     module = importlib.import_module("src.core.config")
     module = importlib.reload(module)
 
-    assert module.WORKSPACE == os.getcwd()
+    assert os.getcwd() == module.WORKSPACE
 
 
 def test_t_config_env_override_workspace(monkeypatch) -> None:
