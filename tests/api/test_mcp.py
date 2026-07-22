@@ -1,5 +1,4 @@
 import pytest
-
 from src.services.git_operations import OperationError
 
 
@@ -95,15 +94,21 @@ def test_t_mcp_git_commit_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_mcp_read_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-READ-FILE-200"""
     monkeypatch.setattr("src.api.mcp.read_file", lambda path: "file content")
-    resp = client.post("/mcp/call", json={"tool": "workspace.read_file", "args": {"path": "test.txt"}})
+    resp = client.post(
+        "/mcp/call", json={"tool": "workspace.read_file", "args": {"path": "test.txt"}}
+    )
     assert resp.status_code == 200
-    assert resp.json() == {"tool": "workspace.read_file", "ok": True, "result": {"content": "file content"}}
+    result = {"tool": "workspace.read_file", "ok": True, "result": {"content": "file content"}}
+    assert resp.json() == result
 
 
 def test_t_mcp_write_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-WRITE-FILE-200"""
     monkeypatch.setattr("src.api.mcp.write_file", lambda path, content: {"status": "ok"})
-    resp = client.post("/mcp/call", json={"tool": "workspace.write_file", "args": {"path": "out.txt", "content": "data"}})
+    resp = client.post(
+        "/mcp/call",
+        json={"tool": "workspace.write_file", "args": {"path": "out.txt", "content": "data"}},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"tool": "workspace.write_file", "ok": True, "result": {"status": "ok"}}
 
@@ -124,26 +129,24 @@ def test_t_mcp_git_checkout_200(client, monkeypatch: pytest.MonkeyPatch) -> None
     assert resp.json() == {"tool": "git.checkout", "ok": True, "result": {"output": "ok"}}
 
 
-def test_t_mcp_git_commit_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    """T-MCP-GIT-COMMIT-200"""
-    monkeypatch.setattr("src.api.mcp.commit", lambda message: "ok")
-    resp = client.post("/mcp/call", json={"tool": "git.commit", "args": {"message": "test commit"}})
-    assert resp.status_code == 200
-    assert resp.json() == {"tool": "git.commit", "ok": True, "result": {"output": "ok"}}
-
-
 def test_t_mcp_workspace_read_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-WORKSPACE-READ-200"""
     monkeypatch.setattr("src.api.mcp.read_file", lambda path: "file content")
-    resp = client.post("/mcp/call", json={"tool": "workspace.read_file", "args": {"path": "test.txt"}})
+    resp = client.post(
+        "/mcp/call", json={"tool": "workspace.read_file", "args": {"path": "test.txt"}}
+    )
     assert resp.status_code == 200
-    assert resp.json() == {"tool": "workspace.read_file", "ok": True, "result": {"content": "file content"}}
+    expected = {"tool": "workspace.read_file", "ok": True, "result": {"content": "file content"}}
+    assert resp.json() == expected
 
 
 def test_t_mcp_workspace_write_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-WORKSPACE-WRITE-200"""
     monkeypatch.setattr("src.api.mcp.write_file", lambda path, content: {"status": "ok"})
-    resp = client.post("/mcp/call", json={"tool": "workspace.write_file", "args": {"path": "test.txt", "content": "data"}})
+    resp = client.post(
+        "/mcp/call",
+        json={"tool": "workspace.write_file", "args": {"path": "test.txt", "content": "data"}},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"tool": "workspace.write_file", "ok": True, "result": {"status": "ok"}}
 

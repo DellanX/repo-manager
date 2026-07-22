@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from src.services.file_operations import _resolve_workspace_path, read_file, write_file
 from src.services.git_operations import OperationError
 

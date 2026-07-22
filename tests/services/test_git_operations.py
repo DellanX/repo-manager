@@ -4,7 +4,6 @@ import subprocess
 from dataclasses import dataclass
 
 import pytest
-
 from src.core import events
 from src.services import git_operations
 from src.services.git_operations import OperationError

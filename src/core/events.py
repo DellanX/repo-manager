@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
 
@@ -20,11 +20,13 @@ class OperationEventStore:
         self._next_id = 1
         self._lock = Lock()
 
-    def record(self, layer: str, operation: str, status: str, payload: dict[str, Any]) -> OperationEvent:
+    def record(
+        self, layer: str, operation: str, status: str, payload: dict[str, Any]
+    ) -> OperationEvent:
         with self._lock:
             event = OperationEvent(
                 id=self._next_id,
-                ts=datetime.now(timezone.utc).isoformat(),
+                ts=datetime.now(UTC).isoformat(),
                 layer=layer,
                 operation=operation,
                 status=status,

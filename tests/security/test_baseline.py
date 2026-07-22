@@ -1,30 +1,30 @@
 import pytest
-
 from src.services.file_operations import _resolve_workspace_path
+from src.services.git_operations import OperationError
 
 
 def test_t_security_workspace_isolation_traversal_rejected(temp_workspace) -> None:
     """T-SEC-TRAVERSAL-REJECT"""
-    with pytest.raises(Exception):
+    with pytest.raises(OperationError):
         _resolve_workspace_path("../../etc/passwd")
 
 
 @pytest.mark.xfail(reason="Command policy enforcement is not implemented yet")
 def test_t_exec_policy_reject_400() -> None:
     """T-EXEC-POLICY-REJECT-400"""
-    assert False, "Policy layer for command execution is not implemented"
+    pytest.fail("Policy layer for command execution is not implemented")
 
 
 @pytest.mark.xfail(reason="Input size boundaries are not implemented yet")
 def test_t_security_input_size_boundaries() -> None:
     """T-SEC-INPUT-SIZE-BOUNDARY"""
-    assert False, "Input size boundary enforcement is not implemented"
+    pytest.fail("Input size boundary enforcement is not implemented")
 
 
 @pytest.mark.xfail(reason="Event payload redaction policy is not implemented yet")
 def test_t_security_event_redaction() -> None:
     """T-SEC-EVENT-REDACTION"""
-    assert False
+    pytest.fail("Event payload redaction is not implemented")
 
 
 @pytest.mark.skip(reason="Auth is not implemented by current architecture")

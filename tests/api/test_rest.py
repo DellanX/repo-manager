@@ -1,5 +1,4 @@
 import pytest
-
 from src.services.git_operations import OperationError
 
 
