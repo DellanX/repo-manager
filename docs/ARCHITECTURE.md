@@ -8,27 +8,31 @@ Repo Manager is a focused microservice that exposes repository operations for AI
 
 - No orchestration of multi-service workflows.
 - No planner logic for agent task decomposition.
-- No UI requirements.
+- No server-rendered UI implementation inside the microservice runtime.
 
 ## Layered Model
 
 1. API Layer
+
 - REST endpoints in `src/api/rest.py`
 - MCP tool interface in `src/api/mcp.py`
 - WebSocket feed in `src/api/websocket.py`
 - Planned webhook lifecycle endpoints and management surface
 
 2. Service Layer
+
 - Git operations in `src/services/git_operations.py`
 - File operations in `src/services/file_operations.py`
 - Planned worktree and multi-workspace operations
 
 3. Core Layer
+
 - Runtime configuration in `src/core/config.py`
 - Operation event store in `src/core/events.py`
 - Planned webhook observer loop runtime and delivery workers
 
 4. Schema Layer
+
 - Request payload contracts in `src/models/schemas.py`
 
 ## Operation Lifecycle
@@ -58,3 +62,4 @@ Repo Manager is a focused microservice that exposes repository operations for AI
 - Multi-workspace support via git worktrees for concurrent developer and AI sandboxes.
 - Webhook subscriptions with observer-loop dispatch and retry/dead-letter semantics.
 - Credential management for secure provider authentication without interactive prompts.
+- Simple Web UI surface for repository/workspace management and integration configuration.

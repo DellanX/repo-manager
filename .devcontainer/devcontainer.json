@@ -14,11 +14,11 @@
     "REPO_MANAGER_WORKSPACE": "/workspace",
     "PYTHONPATH": "/workspace"
   },
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && pip install -e .",
+  "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e .",
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
         "python.analysis.extraPaths": [
           "/workspace"
         ]

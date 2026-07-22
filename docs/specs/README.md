@@ -41,6 +41,11 @@
 - `testing/README.md`
 - `testing/directory_structure.md`
 
+## UI
+
+- `ui/webui.md`
+- `ui/ux.md`
+
 ## Agents
 
 - `agents/README.md`
