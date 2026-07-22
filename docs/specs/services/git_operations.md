@@ -1,42 +1,29 @@
 # Git Operations Service Specification
 
-Source module: `src/services/git_operations.py`
+Source: `src/services/git_operations.py`
 
 ## Operations
 
-1. `clone_repo(url)`
-- Runs `git clone <url> <workspace>`.
-- Records `started` and `completed` events.
-
-2. `checkout(branch)`
-- Runs `git checkout <branch>` in workspace.
-- Records `started` and `completed` events.
-
-3. `commit(message)`
-- Runs `git add .` then `git commit -m <message>`.
-- Records `started` and `completed` events.
-
-4. `push(remote, branch)`
-- Runs `git push <remote> <branch>` in workspace.
-- Records `started` and `completed` events.
-
-5. `exec_cmd(cmd)`
-- Parses with `shlex.split` and executes command in workspace.
-- Records `started` and `completed` events.
-- Must comply with security policy for command restrictions.
+| Function | Command | Required Args |
+|----------|---------|---------------|
+| `clone_repo(url)` | `git clone <url> <workspace>` | url |
+| `checkout(branch)` | `git checkout <branch>` | branch |
+| `commit(message)` | `git add . && git commit -m` | message |
+| `push(remote, branch)` | `git push <remote> <branch>` | remote, branch |
+| `exec_cmd(cmd)` | `shlex.split` + subprocess | cmd |
 
 ## Error Contract
 
-- Non-zero subprocess exit raises `OperationError`.
-- Error message uses stderr, fallback `Command failed`.
+Non-zero exit raises `OperationError` with stderr (fallback: "Command failed").
 
 ## Invariants
 
-- All subprocess calls execute with workspace context where relevant.
-- Shell execution must not use shell=True.
-- Event emission occurs for each operation.
+- All operations emit `started`/`completed` events.
+- Subprocess runs with workspace as cwd.
+- No `shell=True`.
+- `exec_cmd` subject to [security_baseline.md](../security/security_baseline.md) policy.
 
-## Risks to Track
+## Risks
 
-- Concurrent git operations can race.
-- `exec_cmd` can enable risky commands without policy guard.
+- Concurrent git ops can race.
+- `exec_cmd` needs policy guard.

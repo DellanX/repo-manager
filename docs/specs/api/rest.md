@@ -1,58 +1,29 @@
 # REST API Specification
 
-Source module: `src/api/rest.py`
+Source: `src/api/rest.py`
 
 ## Endpoints
 
-1. `POST /clone`
-- Request: `CloneRequest { url }`
-- Response: `{ output: string }`
-- Errors: 400 on operation failure.
+| Method | Path | Request | Response | Errors |
+|--------|------|---------|----------|--------|
+| POST | /clone | `{ url }` | `{ output }` | 400 |
+| POST | /checkout | `{ branch }` | `{ output }` | 400 |
+| POST | /commit | `{ message }` | `{ output }` | 400 |
+| POST | /push | `{ remote?, branch? }` | `{ output }` | 400 |
+| GET | /file | `?path=` | `{ content }` | 400, 404 |
+| POST | /file | `{ path, content }` | `{ status }` | 400 |
+| POST | /exec | `{ cmd }` | `{ output }` | 400 |
+| GET | /health | — | `{ status }` | — |
 
-2. `POST /checkout`
-- Request: `CheckoutRequest { branch }`
-- Response: `{ output: string }`
-- Errors: 400 on operation failure.
-
-3. `POST /commit`
-- Request: `CommitRequest { message }`
-- Response: `{ output: string }`
-- Errors: 400 on operation failure.
-
-4. `POST /push`
-- Request: `PushRequest { remote='origin', branch='main' }`
-- Response: `{ output: string }`
-- Errors: 400 on operation failure.
-
-5. `GET /file?path=<relative-path>`
-- Response: `{ content: string }`
-- Errors: 404 when file missing, 400 for invalid path or operation failure.
-
-6. `POST /file`
-- Request: `WriteFileRequest { path, content }`
-- Response: `{ status: 'ok' }`
-- Errors: 400 on invalid path or write failure.
-
-7. `POST /exec`
-- Request: `ExecRequest { cmd }`
-- Response: `{ output: string }`
-- Errors: 400 on command failure or policy rejection.
-
-8. `GET /health`
-- Response: `{ status: 'ok' }`
+Defaults: `remote='origin'`, `branch='main'`
 
 ## Error Contract
 
-Current implementation returns FastAPI `detail` strings. The target contract should converge on:
+Current: FastAPI `detail` strings.  
+Target: `{ ok: false, error: { code, message } }`
 
-- `{ ok: false, error: { code, message, details? } }`
+## Invariants
 
-Until migration, tests must verify current behavior and track migration as a compatibility change.
-
-## Acceptance Criteria
-
-- Route handlers must call only service-layer functions.
-- `OperationError` must map to deterministic 4xx status codes.
-- File path handling must comply with security baseline.
-- Request bodies must be validated by explicit Pydantic request models; raw `dict`/`Any` payload handling in route handlers is not allowed.
-- Typed boundary linting and exception handling must follow `docs/specs/linting/typed_boundaries.md`.
+- Handlers call service-layer only.
+- Path handling per [security_baseline.md](../security/security_baseline.md).
+- Typed boundaries per [linting/typed_boundaries.md](../linting/typed_boundaries.md).

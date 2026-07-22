@@ -1,36 +1,32 @@
 # Operation Events Specification
 
-Source module: `src/core/events.py`
+Source: `src/core/events.py`
 
 ## Event Model
 
-`OperationEvent`
-- `id: int` (monotonic, starts at 1)
-- `ts: string` (UTC ISO-8601)
-- `layer: string`
-- `operation: string`
-- `status: string`
-- `payload: object`
+```
+OperationEvent { id, ts, layer, operation, status, payload }
+```
 
-## Store Behavior
+- `id`: monotonic int (starts 1)
+- `ts`: UTC ISO-8601
 
-`OperationEventStore`
-- `record(layer, operation, status, payload)` appends a new event.
-- `list_since(last_id)` returns events with `id > last_id`.
-- Thread-safety is protected by a lock.
+## Store API
 
-## Serialization
+| Method | Behavior |
+|--------|----------|
+| `record(layer, op, status, payload)` | Append event |
+| `list_since(last_id)` | Events where id > last_id |
 
-- `serialize_events(events)` returns list of dictionaries.
-- Serialization is direct dataclass field projection.
+Thread-safe (lock-protected).
 
 ## Constraints
 
-- Store is in-memory and process-local.
-- No retention policy yet; growth is unbounded.
+- In-memory, process-local.
+- No retention policy yet (unbounded growth).
 
-## Future Requirements
+## Future
 
-- Define retention/TTL.
-- Define persistence strategy for durable audit trails.
-- Define redaction policy for sensitive payload fields.
+- Retention/TTL
+- Persistence for audit
+- Redaction for sensitive payloads

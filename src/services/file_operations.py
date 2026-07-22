@@ -1,7 +1,7 @@
 import os
 
+from src.core import events
 from src.core.config import WORKSPACE
-from src.core.events import operation_events
 from src.services.git_operations import OperationError
 
 
@@ -18,8 +18,8 @@ def read_file(path: str) -> str:
     if not os.path.exists(full):
         raise OperationError("File not found")
 
-    operation_events.record("service", "read_file", "completed", {"path": path})
-    with open(full, "r", encoding="utf-8") as handle:
+    events.operation_events.record("service", "read_file", "completed", {"path": path})
+    with open(full, encoding="utf-8") as handle:
         return handle.read()
 
 
@@ -30,5 +30,5 @@ def write_file(path: str, content: str) -> dict[str, str]:
     with open(full, "w", encoding="utf-8") as handle:
         handle.write(content)
 
-    operation_events.record("service", "write_file", "completed", {"path": path})
+    events.operation_events.record("service", "write_file", "completed", {"path": path})
     return {"status": "ok"}

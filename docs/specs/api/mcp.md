@@ -1,48 +1,26 @@
 # MCP API Specification
 
-Source module: `src/api/mcp.py`
+Source: `src/api/mcp.py`
 
-## Tool Registry
+## Endpoints
 
-Exposed tools:
+| Method | Path | Response |
+|--------|------|----------|
+| GET | `/mcp/tools` | `{ tools: [{ name, description }] }` |
+| POST | `/mcp/call` | `{ tool, ok: true, result }` or error |
 
-- `git.clone`
-- `git.checkout`
-- `git.commit`
-- `git.push`
-- `workspace.read_file`
-- `workspace.write_file`
-- `workspace.exec`
+## Tool Contracts
 
-`GET /mcp/tools` returns `{ tools: [{ name, description }] }`.
+See [agents/tools.yaml](../agents/tools.yaml) for complete tool definitions including args, returns, and constraints.
 
-## Tool Call Contract
+## Error Codes
 
-`POST /mcp/call`
+| Code | Cause |
+|------|-------|
+| 400 | Missing arg, validation failure, operation error |
+| 404 | Unknown tool |
 
-Request:
-- `tool: string`
-- `args: object` (default `{}`)
+## Invariants
 
-Success response:
-- `{ tool, ok: true, result: object }`
-
-Error behavior:
-- 404 for unknown tool.
-- 400 for missing required argument.
-- 400 for operation errors.
-
-## Validation Rules
-
-- Required args per tool are mandatory.
-- Optional args for push default to `remote='origin'` and `branch='main'`.
-- Values are currently cast to string in handlers.
-- Tool args should be modeled with explicit Pydantic schemas per tool contract; avoid generic `object`/`Any` argument shapes in handler logic.
-- Unknown or extra fields should be rejected by schema configuration unless a documented compatibility reason requires permissive parsing.
-- Typed boundary linting and exception handling must follow `docs/specs/linting/typed_boundaries.md`.
-
-## Agent Usage Notes
-
-- Tools are thin wrappers over service functions.
-- Agent clients should treat tool names as stable identifiers.
-- Argument mismatch should be treated as non-retryable unless corrected.
+- Tools wrap service functions; treat names as stable.
+- Typed boundaries required per [linting/typed_boundaries.md](../linting/typed_boundaries.md).

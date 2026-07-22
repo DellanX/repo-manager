@@ -4,7 +4,6 @@ import subprocess
 from dataclasses import dataclass
 
 import pytest
-
 from src.core import events
 from src.services import git_operations
 from src.services.git_operations import OperationError
@@ -94,3 +93,18 @@ def test_t_git_operations_emit_started_and_completed(
     statuses = [(e.operation, e.status) for e in items]
     assert (expected, "started") in statuses
     assert (expected, "completed") in statuses
+
+
+def test_t_git_run_no_shell_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-NO-SHELL-TRUE: Verify subprocess.run is not called with shell=True."""
+    calls = []
+
+    def capturing_run(cmd, **kwargs):
+        calls.append({"cmd": cmd, "kwargs": kwargs})
+        return DummyCompleted(0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", capturing_run)
+    git_operations._run(["git", "status"])
+
+    assert len(calls) == 1
+    assert "shell" not in calls[0]["kwargs"] or calls[0]["kwargs"]["shell"] is False

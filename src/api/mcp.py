@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -56,8 +57,7 @@ TOOLS: dict[str, dict[str, Any]] = {
 def list_tools() -> dict[str, list[dict[str, str]]]:
     return {
         "tools": [
-            {"name": name, "description": str(meta["description"])}
-            for name, meta in TOOLS.items()
+            {"name": name, "description": str(meta["description"])} for name, meta in TOOLS.items()
         ]
     }
 

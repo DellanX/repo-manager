@@ -4,13 +4,17 @@
     "dockerfile": "Dockerfile",
     "context": ".."
   },
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
   "remoteUser": "vscode",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "containerEnv": {
-    "REPO_MANAGER_WORKSPACE": "/workspace"
+    "REPO_MANAGER_WORKSPACE": "/workspace",
+    "PYTHONPATH": "/workspace"
   },
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && pip install -e .",
   "customizations": {
     "vscode": {
       "settings": {

@@ -35,3 +35,15 @@
 - `linting/python.md`
 - `linting/exceptions.md`
 - `linting/typed_boundaries.md`
+
+## Testing
+
+- `testing/README.md`
+- `testing/directory_structure.md`
+
+## Agents
+
+- `agents/README.md`
+- `agents/tools.yaml`
+- `agents/sequences.md`
+- `agents/constraints.md`

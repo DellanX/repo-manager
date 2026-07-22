@@ -1,37 +1,25 @@
 # File Operations Service Specification
 
-Source module: `src/services/file_operations.py`
+Source: `src/services/file_operations.py`
+
+## Operations
+
+| Function | Behavior | Error |
+|----------|----------|-------|
+| `read_file(path)` | Returns UTF-8 content | `File not found` |
+| `write_file(path, content)` | Creates dirs, writes UTF-8 | `Path escapes workspace` |
 
 ## Path Resolution
 
-- Paths are resolved by joining with workspace root and normalizing absolute path.
-- Any path outside workspace root is rejected with `OperationError('Path escapes workspace')`.
-
-## Read
-
-`read_file(path)`
-
-- Requires resolved path to exist.
-- Returns UTF-8 text content.
-- Raises `OperationError('File not found')` if missing.
-- Records completion event with logical path.
-
-## Write
-
-`write_file(path, content)`
-
-- Creates parent directories if needed.
-- Writes UTF-8 text in overwrite mode.
-- Returns `{ status: 'ok' }`.
-- Records completion event with logical path.
+Paths joined with workspace root, normalized. Traversal outside root raises `OperationError`.
 
 ## Invariants
 
-- All operations must pass path-isolation checks.
-- No direct file access bypassing resolver.
-- Writes are deterministic for same path/content input.
+- All operations emit completion events.
+- All paths must pass isolation check per [security_baseline.md](../security/security_baseline.md).
+- Writes are deterministic for same input.
 
-## Planned Enhancements
+## Planned
 
-- Add atomic write semantics using temporary file + replace.
-- Add optional diff/patch write mode with conflict behavior.
+- Atomic write (temp file + replace)
+- Diff/patch mode
