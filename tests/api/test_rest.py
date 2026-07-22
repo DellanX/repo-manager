@@ -42,6 +42,21 @@ def test_t_rest_push_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     assert resp.json() == {"output": "ok"}
 
 
+def test_t_rest_push_defaults(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-PUSH-DEFAULTS: Push uses origin/main when not specified."""
+    called = {}
+
+    def fake_push(remote: str, branch: str) -> str:
+        called["remote"] = remote
+        called["branch"] = branch
+        return "ok"
+
+    monkeypatch.setattr("src.api.rest.push", fake_push)
+    resp = client.post("/push", json={})
+    assert resp.status_code == 200
+    assert called == {"remote": "origin", "branch": "main"}
+
+
 def test_t_rest_file_get_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-GET-200"""
     monkeypatch.setattr("src.api.rest.read_file", lambda path: "content")
@@ -88,6 +103,66 @@ def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch
     resp = client.post("/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "boom"
+
+
+def test_t_rest_checkout_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CHECKOUT-OP-ERROR-400"""
+
+    def fail(branch: str) -> str:
+        raise OperationError("checkout failed")
+
+    monkeypatch.setattr("src.api.rest.checkout", fail)
+    resp = client.post("/checkout", json={"branch": "feature"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "checkout failed"
+
+
+def test_t_rest_commit_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-COMMIT-OP-ERROR-400"""
+
+    def fail(message: str) -> str:
+        raise OperationError("commit failed")
+
+    monkeypatch.setattr("src.api.rest.commit", fail)
+    resp = client.post("/commit", json={"message": "test"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "commit failed"
+
+
+def test_t_rest_push_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-PUSH-OP-ERROR-400"""
+
+    def fail(remote: str, branch: str) -> str:
+        raise OperationError("push failed")
+
+    monkeypatch.setattr("src.api.rest.push", fail)
+    resp = client.post("/push", json={"remote": "origin", "branch": "main"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "push failed"
+
+
+def test_t_rest_file_post_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-FILE-WRITE-OP-ERROR-400"""
+
+    def fail(path: str, content: str) -> dict:
+        raise OperationError("write failed")
+
+    monkeypatch.setattr("src.api.rest.write_file", fail)
+    resp = client.post("/file", json={"path": "test.txt", "content": "data"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "write failed"
+
+
+def test_t_rest_exec_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-EXEC-OP-ERROR-400"""
+
+    def fail(cmd: str) -> str:
+        raise OperationError("exec failed")
+
+    monkeypatch.setattr("src.api.rest.exec_cmd", fail)
+    resp = client.post("/exec", json={"cmd": "git status"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "exec failed"
 
 
 @pytest.mark.parametrize(

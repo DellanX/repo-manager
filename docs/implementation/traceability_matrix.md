@@ -16,6 +16,9 @@ Each capability must map to API contracts, service contracts, schema contracts, 
 | RM-WORKTREE-MULTI-WS | Manage multi-workspace worktrees | `specs/api/mcp.md` | `specs/services/worktrees.md` | `specs/models/schemas.md` | T-WT-CREATE-200, T-WT-ISOLATION-200, T-WT-REMOVE-PROTECT-400 |
 | RM-WEBHOOK-SUBSCRIPTIONS | Manage webhook subscriptions | `specs/api/webhooks.md` | `specs/core/webhook_runtime.md` | `specs/models/schemas.md` | T-WH-CREATE-200, T-WH-SIGNATURE-200, T-WH-RETRY-DLQ |
 | RM-CREDENTIAL-LIFECYCLE | Manage provider credentials securely | `specs/api/mcp.md` | `specs/security/credential_management.md` | `specs/models/schemas.md` | T-CRED-REDACTION, T-CRED-ROTATE-200, T-CRED-ACCESS-403 |
+| RM-AGENT-TOOLS | Tool contract definitions for agents | `specs/agents/tools.yaml` | N/A | N/A | T-AGENT-TOOLS-PARSE |
+| RM-AGENT-SEQUENCES | Operation flow patterns | `specs/agents/sequences.md` | N/A | N/A | T-AGENT-SEQ-VALID |
+| RM-AGENT-CONSTRAINTS | Safety constraint rules | `specs/agents/constraints.md` | N/A | N/A | T-AGENT-CONSTRAINT-400 |
 
 ## Completion Rule
 

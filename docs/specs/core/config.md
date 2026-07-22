@@ -1,34 +1,27 @@
 # Configuration Specification
 
-Source module: `src/core/config.py`
+Source: `src/core/config.py`
 
 ## Environment Variables
 
-- `REPO_MANAGER_WORKSPACE`
-  - Default: `/workspace`
-  - Meaning: root directory for git and file operations.
+| Var | Default | Purpose |
+|-----|---------|----------|
+| `REPO_MANAGER_WORKSPACE` | `/workspace` | Root for git/file ops |
 
-## Startup Behavior
+## Startup
 
-- Workspace directory is created at import/startup if missing.
+Workspace dir created if missing. Runtime needs read/write access.
 
-## Requirements
+## Validation (target)
 
-- Runtime must have read/write access to workspace path.
-- Production deployment must override workspace path to host-specific location.
-
-## Validation Rules (target)
-
-- Reject empty or whitespace-only workspace values.
-- Reject paths that cannot be created or accessed.
-- Emit startup failure with clear operator-facing message.
+- Reject empty/whitespace workspace.
+- Reject inaccessible paths.
+- Fail with clear operator message.
 
 ## Type Linting Exceptions
 
-When an exception to typed boundary linting rules is required, record it here with:
+Record exceptions to [typed_boundaries.md](../linting/typed_boundaries.md) here:
 
-- File and symbol location.
-- Rationale for why explicit Pydantic modeling is not viable.
-- Risk and mitigation.
-- Owner and review date.
-- Tracking issue or ADR reference.
+| Location | Rationale | Risk/Mitigation | Owner | Review |
+|----------|-----------|-----------------|-------|--------|
+| — | — | — | — | — |

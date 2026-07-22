@@ -1,0 +1,62 @@
+# MCP Tool Registry
+# Parse this file to get exact tool contracts
+
+tools:
+  git.clone:
+    description: Clone a git repository
+    args:
+      url: {type: string, required: true}
+    returns: {output: string}
+    errors: [400, 404]
+
+  git.checkout:
+    description: Checkout a branch
+    args:
+      branch: {type: string, required: true}
+    returns: {output: string}
+    errors: [400]
+
+  git.commit:
+    description: Commit workspace changes
+    args:
+      message: {type: string, required: true}
+    returns: {output: string}
+    errors: [400]
+
+  git.push:
+    description: Push to a remote branch
+    args:
+      remote: {type: string, required: false, default: "origin"}
+      branch: {type: string, required: false, default: "main"}
+    returns: {output: string}
+    errors: [400]
+
+  workspace.read_file:
+    description: Read a file from workspace
+    args:
+      path: {type: string, required: true}
+    returns: {content: string}
+    errors: [400]
+    constraints: [path_must_be_relative, no_traversal]
+
+  workspace.write_file:
+    description: Write a file in workspace
+    args:
+      path: {type: string, required: true}
+      content: {type: string, required: false, default: ""}
+    returns: {status: string}
+    errors: [400]
+    constraints: [path_must_be_relative, no_traversal]
+
+  workspace.exec:
+    description: Execute a command in workspace
+    args:
+      cmd: {type: string, required: true}
+    returns: {output: string}
+    errors: [400]
+    constraints: [policy_allowlist]
+
+# Error code meanings
+error_codes:
+  400: Bad request / operation failed / argument validation
+  404: Unknown tool

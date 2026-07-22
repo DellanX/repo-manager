@@ -29,3 +29,20 @@ def test_t_file_write_traversal_rejected(temp_workspace: Path) -> None:
     """T-FILE-WRITE-TRAVERSAL-400"""
     with pytest.raises(OperationError, match="Path escapes workspace"):
         write_file("../outside.txt", "x")
+
+
+def test_t_file_operations_emit_events(temp_workspace: Path) -> None:
+    """T-FILE-EVENTS-COMPLETED: File operations emit completion events."""
+    from src.core import events
+
+    initial_count = len(events.operation_events.list_since(0))
+
+    write_file("events_test.txt", "content")
+    read_file("events_test.txt")
+
+    items = events.operation_events.list_since(0)
+    new_events = items[initial_count:]
+
+    operations = [e.operation for e in new_events]
+    assert "write_file" in operations
+    assert "read_file" in operations

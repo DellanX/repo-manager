@@ -1,59 +1,29 @@
 # Security Baseline Specification
 
-## Status
-
-This is a mandatory baseline. New features must satisfy these controls before merge.
+**Status**: Mandatory. New features must satisfy these controls.
 
 ## Required Controls
 
-1. Workspace isolation
-- All file paths must resolve under configured workspace root.
-- Traversal attempts (for example `../`) must be rejected with a controlled error.
-
-2. Command execution restrictions
-- `exec` capability must enforce a policy.
-- Policy must be one of: explicit allowlist or sandboxed execution environment.
-- Free-form arbitrary shell execution in production mode is forbidden.
-
-3. Input validation limits
-- Maximum sizes must be defined for command input and file writes.
-- Requests that exceed limits must fail with deterministic 4xx errors.
-
-4. Error hygiene
-- Errors must not leak secrets, local usernames, or full filesystem details.
-- Standard error format must be documented and reused across APIs.
-
-5. Event auditability
-- Sensitive fields must be redacted in event payloads.
-- Event records must include operation name, status, and timestamp.
-
-6. Auth readiness gate
-- Current auth state must be declared as "not implemented" in user-facing docs.
-- Production deployment requires an explicit auth decision record.
-
-7. Credential handling
-- Credentials must be encrypted at rest and referenced by ID, not returned in plaintext.
-- Secret material must be redacted from logs, events, and error payloads.
-
-8. Webhook outbound safety
-- Webhook targets must enforce SSRF protections (allowlist and network boundary policy).
-- Webhook payloads must be signed and signature algorithm documented.
-
-9. Typed boundary validation
-- Untrusted inbound data must be validated at the API boundary using explicit Pydantic models.
-- Generic untyped payload handling (for example `Any`/`unknown`-style structures passed through layers) is forbidden unless explicitly documented and risk-assessed.
-- Typed boundary static checks and exceptions must follow `docs/specs/linting/typed_boundaries.md`.
+| Control | Requirement |
+|---------|-------------|
+| Workspace isolation | Paths resolve under workspace root; `../` rejected |
+| Command execution | Policy allowlist or sandbox; no free-form shell |
+| Input limits | Max sizes for cmd/file; exceed → 4xx |
+| Error hygiene | No secrets/paths/usernames in errors |
+| Event auditability | Redact sensitive fields; include op/status/ts |
+| Auth readiness | Declared "not implemented"; prod requires decision record |
+| Credential handling | Encrypted at rest; referenced by ID; redacted from logs |
+| Webhook safety | SSRF protections; signed payloads; TLS required |
+| Typed boundaries | Pydantic at API boundary; see [typed_boundaries.md](../linting/typed_boundaries.md) |
 
 ## Test Requirements
 
-- Traversal rejection tests for read and write paths.
-- Injection-pattern rejection tests for command execution policy.
-- Input-size boundary tests.
-- Redaction checks for logs/events.
-- Unauthorized access tests once auth is introduced.
+- Traversal rejection for read/write
+- Injection rejection for exec
+- Input-size boundary tests
+- Redaction checks
+- Unauthorized access (when auth added)
 
-## Linting and Exception Requirements
+## Exceptions
 
-- Lint/type checks must enforce typed boundaries for inbound payload handling.
-- Exceptions to typed-boundary rules must be documented in `docs/specs/core/config.md` under `Type Linting Exceptions`.
-- Exception records must include rationale, risk mitigation, owner, and review date.
+Document in [config.md](../core/config.md) under Type Linting Exceptions.

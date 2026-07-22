@@ -2,7 +2,8 @@ import asyncio
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from src.core.events import serialize_events, operation_events
+from src.core import events as events_module
+from src.core.events import serialize_events
 
 router = APIRouter(tags=["websocket"])
 
@@ -21,7 +22,7 @@ async def watch_operations(websocket: WebSocket) -> None:
     last_id = 0
     try:
         while True:
-            events = operation_events.list_since(last_id)
+            events = events_module.operation_events.list_since(last_id)
             if events:
                 last_id = events[-1].id
                 await websocket.send_json({"type": "events", "items": serialize_events(events)})

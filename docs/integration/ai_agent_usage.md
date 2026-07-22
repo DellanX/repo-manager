@@ -1,33 +1,17 @@
-# AI Agent Integration Guidance
+# AI Agent Integration
 
-## Objective
+See [specs/agents/](../specs/agents/) for machine-readable contracts.
 
-Define safe and deterministic usage patterns for AI clients interacting with Repo Manager.
+## Quick Reference
 
-## Recommended Operation Sequence
+| Resource | Purpose |
+|----------|----------|
+| [tools.yaml](../specs/agents/tools.yaml) | Tool args, returns, errors |
+| [sequences.md](../specs/agents/sequences.md) | Canonical operation flows |
+| [constraints.md](../specs/agents/constraints.md) | Safety rules, retry policy |
 
-1. Clone repository.
-2. Checkout target branch.
-3. Read relevant files.
-4. Write file updates.
-5. Run safe validation commands.
-6. Commit changes.
-7. Push branch.
+## Error Recovery Tips
 
-## Retry Guidance
-
-- Do not blindly retry validation failures.
-- Retry network-like git failures only after bounded backoff.
-- Do not retry argument validation errors without changing input.
-
-## Error Recovery
-
-- On write failure: re-read target file and reassess path validity.
-- On commit failure: inspect git status output before retrying.
-- On push failure: verify remote and branch assumptions.
-
-## Safety Rules for Agents
-
-- Never send absolute paths outside workspace.
-- Prefer tool-native operations over raw exec.
-- Avoid destructive commands unless explicitly requested by user policy.
+- Write failure → re-read file, check path.
+- Commit failure → check `git status`.
+- Push failure → verify remote/branch.
