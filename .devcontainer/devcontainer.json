@@ -1,41 +1,49 @@
 {
   "name": "repo-manager-dev",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
+  "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
   "features": {
     "ghcr.io/devcontainers/features/git:1": {}
   },
-  "remoteUser": "vscode",
+  "remoteUser": "codespace",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "containerEnv": {
     "REPO_MANAGER_WORKSPACE": "/workspace",
-    "PYTHONPATH": "/workspace"
+    "PYTHONPATH": "/workspace/backend/src"
   },
-  "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e .",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.defaultInterpreterPath": "/workspace/backend/.venv/bin/python",
         "python.analysis.extraPaths": [
-          "/workspace"
-        ]
+          "/workspace/backend/src"
+        ],
+        "eslint.workingDirectories": [
+          "frontend"
+        ],
+        "typescript.tsdk": "frontend/node_modules/typescript/lib"
       },
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-azuretools.vscode-docker"
+        "ms-azuretools.vscode-docker",
+        "Vue.volar",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
       ]
     }
   },
   "forwardPorts": [
-    8000
+    8888,
+    5173
   ],
   "portsAttributes": {
-    "8000": {
-      "label": "Repo Manager API"
+    "8888": {
+      "label": "Backend API"
+    },
+    "5173": {
+      "label": "Frontend Dev Server"
     }
   }
 }

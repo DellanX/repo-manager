@@ -1,0 +1,101 @@
+"""Web UI API endpoints (JSON only).
+
+Implements endpoints per docs/specs/ui/webui.md and docs/specs/ui/ux.md.
+All HTML rendering is handled by the frontend SPA.
+"""
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, HTTPException
+
+from src.core import events
+from src.models.schemas import (
+    ActivityItem,
+    DashboardResponse,
+    InventoryCounts,
+    InventoryResponse,
+)
+from src.services.workspace_inventory import InventoryError, inventory_service
+
+router = APIRouter(prefix="/ui", tags=["ui"])
+
+
+def _get_dashboard_data() -> DashboardResponse:
+    """Get dashboard data."""
+    inventory = inventory_service.get_inventory()
+
+    # Calculate counts
+    stale_count = sum(
+        1 for r in inventory.repositories
+        if r.status in ("stale", "missing_path", "invalid_git_metadata")
+    ) + sum(
+        1 for w in inventory.workspaces
+        if w.status in ("stale", "missing_path", "invalid_git_metadata")
+    )
+
+    counts = InventoryCounts(
+        repositories=len(inventory.repositories),
+        workspaces=len(inventory.workspaces),
+        stale_or_missing=stale_count,
+    )
+
+    # Determine health status
+    health_status = "degraded" if stale_count > 0 else "healthy"
+
+    # Get recent activity from event store
+    recent_events = events.operation_events.list_since(0)[-20:]
+    activity = [
+        ActivityItem(
+            id=e.id,
+            timestamp=e.ts,
+            operation=e.operation,
+            status=e.status,
+            summary=f"{e.operation} {e.status}",
+        )
+        for e in reversed(recent_events)
+    ]
+
+    return DashboardResponse(
+        counts=counts,
+        health_status=health_status,
+        worktrees=inventory.workspaces,
+        recent_activity=activity,
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+@router.get("/dashboard", response_model=DashboardResponse)
+def get_dashboard() -> DashboardResponse:
+    """Get dashboard data as JSON.
+
+    Returns summary counts, worktree table, and recent activity
+    per docs/specs/ui/ux.md section 3.1.
+
+    Returns:
+        DashboardResponse: Dashboard data including counts, worktrees, activity
+
+    Raises:
+        HTTPException: 500 if inventory backend unavailable
+    """
+    try:
+        return _get_dashboard_data()
+    except InventoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/inventory", response_model=InventoryResponse)
+def get_inventory() -> InventoryResponse:
+    """Get repository and workspace inventory.
+
+    Returns the current inventory of managed repositories and workspaces.
+    Response format follows docs/specs/ui/webui.md section 3.1.
+
+    Returns:
+        InventoryResponse: Current inventory state
+
+    Raises:
+        HTTPException: 500 if inventory backend unavailable
+    """
+    try:
+        return inventory_service.get_inventory()
+    except InventoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
