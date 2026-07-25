@@ -22,7 +22,7 @@ echo ">>> Setting up frontend..."
 cd /workspace/frontend
 
 echo "Installing Node dependencies..."
-npm install
+npm install --legacy-peer-deps
 
 echo "=== Setup complete ==="
 echo ""
