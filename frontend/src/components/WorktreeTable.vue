@@ -10,8 +10,8 @@ defineProps<{
 
 const store = useInventoryStore()
 
-async function handleSelect(workspaceId: string) {
-  await store.selectWorkspace(workspaceId)
+function repositoryLabel(repositoryId: string): string {
+  return store.getRepositoryById(repositoryId)?.name ?? repositoryId
 }
 
 async function handleRemove(workspaceId: string) {
@@ -24,8 +24,8 @@ async function handleRemove(workspaceId: string) {
 <template>
   <DataTable
     :columns="showRepository
-      ? ['Workspace ID', 'Repository', 'Path', 'Branch', 'Dirty', 'Status', 'Last Seen', 'Actions']
-      : ['Workspace ID', 'Path', 'Branch', 'Dirty', 'Status', 'Last Seen', 'Actions']"
+      ? ['Workspace', 'Repository', 'Path', 'Branch', 'Dirty', 'Status', 'Last Seen', 'Actions']
+      : ['Workspace', 'Path', 'Branch', 'Dirty', 'Status', 'Last Seen', 'Actions']"
   >
     <EmptyState v-if="workspaces.length === 0" :colspan="showRepository ? 8 : 7" message="No workspaces found.">
       <RouterLink to="/workspaces">
@@ -37,10 +37,14 @@ async function handleRemove(workspaceId: string) {
       :key="ws.workspace_id"
       class="hover:bg-gray-50 dark:hover:bg-neutral-700"
     >
-      <td class="px-4 py-3">{{ ws.workspace_id }}</td>
+      <td class="px-4 py-3" :title="ws.workspace_id">{{ ws.workspace_name }}</td>
       <td v-if="showRepository" class="px-4 py-3">
-        <RouterLink :to="`/repos/${ws.repository_id}`" class="text-blue-600 dark:text-blue-400 hover:underline">
-          {{ ws.repository_id }}
+        <RouterLink
+          :to="`/repos/${ws.repository_id}`"
+          :title="ws.repository_id"
+          class="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {{ repositoryLabel(ws.repository_id) }}
         </RouterLink>
       </td>
       <td class="px-4 py-3 font-mono text-sm max-w-xs truncate">{{ ws.path }}</td>
@@ -56,7 +60,9 @@ async function handleRemove(workspaceId: string) {
       </td>
       <td class="px-4 py-3">{{ ws.last_seen_at.slice(0, 19) }}</td>
       <td class="px-4 py-3 space-x-1">
-        <AppButton size="sm" @click="handleSelect(ws.workspace_id)">Select</AppButton>
+        <RouterLink :to="`/workspaces/${ws.workspace_id}`">
+          <AppButton size="sm">View</AppButton>
+        </RouterLink>
         <AppButton size="sm" variant="danger" @click="handleRemove(ws.workspace_id)">Remove</AppButton>
       </td>
     </tr>

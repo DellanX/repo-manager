@@ -129,6 +129,7 @@ class WorkspaceInventoryService:
         self,
         workspace_id: str,
         repository_id: str,
+        workspace_name: str,
         path: str,
         branch: str,
         head_sha: str,
@@ -139,6 +140,7 @@ class WorkspaceInventoryService:
         ws = WorkspaceInfo(
             workspace_id=workspace_id,
             repository_id=repository_id,
+            workspace_name=workspace_name,
             path=normalized_path,
             branch=branch,
             head_sha=head_sha,
@@ -210,6 +212,7 @@ class WorkspaceInventoryService:
                         WorkspaceInfo(
                             workspace_id=ws.workspace_id,
                             repository_id=ws.repository_id,
+                            workspace_name=ws.workspace_name,
                             path=ws.path,
                             branch=ws.branch,
                             head_sha=ws.head_sha,
@@ -252,6 +255,7 @@ class WorkspaceInventoryService:
                     self._workspaces[ws_id] = WorkspaceInfo(
                         workspace_id=ws.workspace_id,
                         repository_id=ws.repository_id,
+                        workspace_name=ws.workspace_name,
                         path=ws.path,
                         branch=ws.branch,
                         head_sha=ws.head_sha,
@@ -384,6 +388,202 @@ class WorkspaceInventoryService:
         )
         return updated_repo
 
+    def create_workspace(
+        self,
+        repository_id: str,
+        branch: str,
+        workspace_name: str | None = None,
+    ) -> WorkspaceInfo:
+        """Create a git worktree workspace for a managed repository."""
+        normalized_branch = branch.strip()
+        if not normalized_branch:
+            raise InventoryError("Branch cannot be empty")
+
+        repo = self._get_repository_by_id(repository_id)
+        if repo is None:
+            raise InventoryError(f"Repository not found: {repository_id}")
+
+        repo_path = Path(repo.root_path)
+        if not repo_path.exists():
+            raise InventoryError(f"Repository path missing: {repo.root_path}")
+        if not self._is_valid_git_repo(repo_path):
+            raise InventoryError(f"Invalid git metadata for repository: {repository_id}")
+
+        worktrees_root = Path(WORKSPACE) / "worktrees"
+        worktrees_root.mkdir(parents=True, exist_ok=True)
+        destination = self._build_workspace_path(
+            worktrees_root=worktrees_root,
+            repository=repo,
+            branch=normalized_branch,
+            workspace_name=workspace_name,
+        )
+
+        events.operation_events.record(
+            "inventory",
+            "create_workspace",
+            "started",
+            {
+                "repository_id": repository_id,
+                "branch": normalized_branch,
+                "path": str(destination),
+            },
+        )
+
+        command = self._build_worktree_create_command(
+            repo_path=repo_path,
+            destination=destination,
+            branch=normalized_branch,
+            default_branch=repo.default_branch,
+        )
+        try:
+            subprocess.run(command, capture_output=True, text=True, check=True)
+        except FileNotFoundError as exc:
+            raise InventoryError("Git executable not found") from exc
+        except subprocess.CalledProcessError as exc:
+            message = exc.stderr.strip() or exc.stdout.strip() or "git worktree add failed"
+            events.operation_events.record(
+                "inventory",
+                "create_workspace",
+                "failed",
+                {"repository_id": repository_id, "error": message},
+            )
+            raise InventoryError(f"Failed to create workspace: {message}") from exc
+
+        git_dir = self._resolve_git_dir(destination)
+        if git_dir is None:
+            raise InventoryError("Workspace created but git metadata was not found")
+        workspace = self.add_workspace(
+            workspace_id=self._generate_id(str(destination.resolve())),
+            repository_id=repository_id,
+            workspace_name=self._workspace_name_from_path(destination),
+            path=str(destination.resolve()),
+            branch=self._parse_head_branch(git_dir / "HEAD"),
+            head_sha=self._parse_head_sha(git_dir),
+            is_dirty=self._is_worktree_dirty(destination),
+        )
+        events.operation_events.record(
+            "inventory",
+            "create_workspace",
+            "completed",
+            {"workspace_id": workspace.workspace_id, "repository_id": repository_id},
+        )
+        return workspace
+
+    def remove_workspace(self, workspace_id: str) -> None:
+        """Remove a managed git worktree workspace."""
+        workspace = self._get_workspace_by_id(workspace_id)
+        if workspace is None:
+            raise InventoryError(f"Workspace not found: {workspace_id}")
+
+        repo = self._get_repository_by_id(workspace.repository_id)
+        if repo is None:
+            raise InventoryError(
+                f"Repository not found for workspace: {workspace.repository_id}"
+            )
+
+        events.operation_events.record(
+            "inventory",
+            "remove_workspace",
+            "started",
+            {"workspace_id": workspace_id},
+        )
+
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    repo.root_path,
+                    "worktree",
+                    "remove",
+                    workspace.path,
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except FileNotFoundError as exc:
+            raise InventoryError("Git executable not found") from exc
+        except subprocess.CalledProcessError as exc:
+            message = exc.stderr.strip() or exc.stdout.strip() or "git worktree remove failed"
+            events.operation_events.record(
+                "inventory",
+                "remove_workspace",
+                "failed",
+                {"workspace_id": workspace_id, "error": message},
+            )
+            raise InventoryError(f"Failed to remove workspace: {message}") from exc
+
+        self._delete_workspace(workspace_id)
+        events.operation_events.record(
+            "inventory",
+            "remove_workspace",
+            "completed",
+            {"workspace_id": workspace_id},
+        )
+
+    def rename_repository(self, repository_id: str, name: str) -> RepositoryInfo:
+        """Rename a managed repository display name."""
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise InventoryError("Repository name cannot be empty")
+        repo = self._get_repository_by_id(repository_id)
+        if repo is None:
+            raise InventoryError(f"Repository not found: {repository_id}")
+        updated = RepositoryInfo(
+            repository_id=repo.repository_id,
+            name=normalized_name,
+            root_path=repo.root_path,
+            origin_url=repo.origin_url,
+            default_branch=repo.default_branch,
+            status=repo.status,
+            last_seen_at=repo.last_seen_at,
+            last_fetched_at=repo.last_fetched_at,
+            last_commit_at=repo.last_commit_at,
+        )
+        if self.source_mode == "database":
+            self._upsert_repository(updated)
+        else:
+            self._repositories[repository_id] = updated
+        events.operation_events.record(
+            "inventory",
+            "rename_repository",
+            "completed",
+            {"repository_id": repository_id},
+        )
+        return updated
+
+    def rename_workspace(self, workspace_id: str, workspace_name: str) -> WorkspaceInfo:
+        """Rename a managed workspace display name."""
+        normalized_name = workspace_name.strip()
+        if not normalized_name:
+            raise InventoryError("Workspace name cannot be empty")
+        workspace = self._get_workspace_by_id(workspace_id)
+        if workspace is None:
+            raise InventoryError(f"Workspace not found: {workspace_id}")
+        updated = WorkspaceInfo(
+            workspace_id=workspace.workspace_id,
+            repository_id=workspace.repository_id,
+            workspace_name=normalized_name,
+            path=workspace.path,
+            branch=workspace.branch,
+            head_sha=workspace.head_sha,
+            is_dirty=workspace.is_dirty,
+            status=workspace.status,
+            last_seen_at=workspace.last_seen_at,
+        )
+        if self.source_mode == "database":
+            self._upsert_workspace(updated)
+        else:
+            self._workspaces[workspace_id] = updated
+        events.operation_events.record(
+            "inventory",
+            "rename_workspace",
+            "completed",
+            {"workspace_id": workspace_id},
+        )
+        return updated
+
     def rescan(self, roots: list[str] | None = None) -> InventoryResponse:
         """Rescan filesystem roots and refresh inventory entries."""
         scan_roots = roots or self.workspace_roots
@@ -405,6 +605,21 @@ class WorkspaceInventoryService:
                 self._workspaces = original_workspaces
 
             if self.source_mode == "database":
+                self._preserve_custom_names(discovered_repositories, discovered_workspaces)
+                discovered_workspace_paths = {
+                    os.path.normpath(os.path.abspath(workspace.path))
+                    for workspace in discovered_workspaces.values()
+                }
+                discovered_repository_paths = {
+                    os.path.normpath(os.path.abspath(repository.root_path))
+                    for repository in discovered_repositories.values()
+                }
+                misclassified_repository_paths = (
+                    discovered_workspace_paths - discovered_repository_paths
+                )
+                if misclassified_repository_paths:
+                    self._delete_repositories_by_paths(misclassified_repository_paths)
+
                 for repo in discovered_repositories.values():
                     self._upsert_repository(repo)
                 for ws in discovered_workspaces.values():
@@ -440,7 +655,10 @@ class WorkspaceInventoryService:
 
             for path in root_path.iterdir():
                 if path.is_dir() and (path / ".git").exists():
-                    self._discover_repository(path)
+                    if self._is_linked_worktree(path):
+                        self._discover_workspace(path)
+                    else:
+                        self._discover_repository(path)
 
     def _discover_repository(self, repo_path: Path) -> None:
         """Discover and register a repository from filesystem."""
@@ -488,10 +706,41 @@ class WorkspaceInventoryService:
         self._workspaces[ws_id] = WorkspaceInfo(
             workspace_id=ws_id,
             repository_id=repo_id,
+            workspace_name=repo_path.name,
             path=str(repo_path.resolve()),
             branch=default_branch,
             head_sha=head_sha,
             is_dirty=False,  # Would need git status check for accurate value
+            status="ready",
+            last_seen_at=datetime.now(UTC).isoformat(),
+        )
+
+    def _discover_workspace(self, workspace_path: Path) -> None:
+        """Discover and register a linked git worktree as a workspace only."""
+        git_dir = self._resolve_git_dir(workspace_path)
+        if git_dir is None:
+            return
+
+        repository_root = self._resolve_worktree_repository_root(git_dir)
+        if repository_root is None:
+            return
+
+        repository_id = self._generate_id(str(repository_root))
+        if repository_id not in self._repositories:
+            self._discover_repository(repository_root)
+
+        if repository_id not in self._repositories:
+            return
+
+        ws_id = self._generate_id(str(workspace_path.resolve()))
+        self._workspaces[ws_id] = WorkspaceInfo(
+            workspace_id=ws_id,
+            repository_id=repository_id,
+            workspace_name=workspace_path.name,
+            path=str(workspace_path.resolve()),
+            branch=self._parse_head_branch(git_dir / "HEAD"),
+            head_sha=self._parse_head_sha(git_dir),
+            is_dirty=self._is_worktree_dirty(workspace_path),
             status="ready",
             last_seen_at=datetime.now(UTC).isoformat(),
         )
@@ -522,6 +771,28 @@ class WorkspaceInventoryService:
                 candidate = (repo_path / candidate).resolve()
             return candidate
         return None
+
+    def _is_linked_worktree(self, path: Path) -> bool:
+        git_entry = path / ".git"
+        if not git_entry.is_file():
+            return False
+        git_dir = self._resolve_git_dir(path)
+        if git_dir is None:
+            return False
+        return git_dir.parent.name == "worktrees"
+
+    def _resolve_worktree_repository_root(self, git_dir: Path) -> Path | None:
+        if git_dir.parent.name != "worktrees":
+            return None
+        common_git_dir = git_dir.parent.parent
+        repository_root = common_git_dir.parent
+        if not repository_root.exists():
+            return None
+        return repository_root.resolve()
+
+    def _workspace_name_from_path(self, workspace_path: Path) -> str:
+        resolved = workspace_path.resolve()
+        return resolved.name or self._generate_id(str(resolved))
 
     def _parse_origin_url(self, config_path: Path) -> str:
         """Parse origin URL from git config file."""
@@ -661,6 +932,50 @@ class WorkspaceInventoryService:
             last_commit_at=last_commit_at,
         )
 
+    def _preserve_custom_names(
+        self,
+        discovered_repositories: dict[str, RepositoryInfo],
+        discovered_workspaces: dict[str, WorkspaceInfo],
+    ) -> None:
+        existing_repositories = {
+            repo.repository_id: repo for repo in self._list_repositories_from_db()
+        }
+        existing_workspaces = {
+            workspace.workspace_id: workspace for workspace in self._list_workspaces_from_db()
+        }
+
+        for repo_id, repo in list(discovered_repositories.items()):
+            existing_repo = existing_repositories.get(repo_id)
+            if existing_repo is None:
+                continue
+            discovered_repositories[repo_id] = RepositoryInfo(
+                repository_id=repo.repository_id,
+                name=existing_repo.name,
+                root_path=repo.root_path,
+                origin_url=repo.origin_url,
+                default_branch=repo.default_branch,
+                status=repo.status,
+                last_seen_at=repo.last_seen_at,
+                last_fetched_at=repo.last_fetched_at,
+                last_commit_at=repo.last_commit_at,
+            )
+
+        for workspace_id, workspace in list(discovered_workspaces.items()):
+            existing_workspace = existing_workspaces.get(workspace_id)
+            if existing_workspace is None:
+                continue
+            discovered_workspaces[workspace_id] = WorkspaceInfo(
+                workspace_id=workspace.workspace_id,
+                repository_id=workspace.repository_id,
+                workspace_name=existing_workspace.workspace_name,
+                path=workspace.path,
+                branch=workspace.branch,
+                head_sha=workspace.head_sha,
+                is_dirty=workspace.is_dirty,
+                status=workspace.status,
+                last_seen_at=workspace.last_seen_at,
+            )
+
     def _get_repository_by_id(self, repository_id: str) -> RepositoryInfo | None:
         if self.source_mode == "database":
             for repo in self._list_repositories_from_db():
@@ -668,6 +983,100 @@ class WorkspaceInventoryService:
                     return repo
             return None
         return self._repositories.get(repository_id)
+
+    def _get_workspace_by_id(self, workspace_id: str) -> WorkspaceInfo | None:
+        if self.source_mode == "database":
+            for workspace in self._list_workspaces_from_db():
+                if workspace.workspace_id == workspace_id:
+                    return workspace
+            return None
+        return self._workspaces.get(workspace_id)
+
+    def _delete_workspace(self, workspace_id: str) -> None:
+        if self.source_mode == "database":
+            with self._connect() as connection:
+                connection.execute(
+                    "DELETE FROM workspaces WHERE workspace_id = ?",
+                    (workspace_id,),
+                )
+            return
+        self._workspaces.pop(workspace_id, None)
+
+    def _build_workspace_path(
+        self,
+        worktrees_root: Path,
+        repository: RepositoryInfo,
+        branch: str,
+        workspace_name: str | None,
+    ) -> Path:
+        if workspace_name:
+            candidate_name = self._slugify(workspace_name)
+            if not candidate_name:
+                raise InventoryError("Workspace name cannot be empty")
+        else:
+            timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+            candidate_name = (
+                f"{self._slugify(repository.name)}-{self._slugify(branch)}-{timestamp}"
+            )
+
+        destination = (worktrees_root / candidate_name).resolve()
+        root_resolved = worktrees_root.resolve()
+        if destination == root_resolved or root_resolved not in destination.parents:
+            raise InventoryError("Workspace path escapes worktrees root")
+        if destination.exists():
+            raise InventoryError(f"Workspace path already exists: {destination}")
+        return destination
+
+    def _build_worktree_create_command(
+        self,
+        repo_path: Path,
+        destination: Path,
+        branch: str,
+        default_branch: str,
+    ) -> list[str]:
+        branch_exists = self._branch_exists(repo_path, branch)
+        if branch_exists:
+            return [
+                "git",
+                "-C",
+                str(repo_path),
+                "worktree",
+                "add",
+                str(destination),
+                branch,
+            ]
+        return [
+            "git",
+            "-C",
+            str(repo_path),
+            "worktree",
+            "add",
+            "-b",
+            branch,
+            str(destination),
+            default_branch,
+        ]
+
+    def _branch_exists(self, repo_path: Path, branch: str) -> bool:
+        result = subprocess.run(
+            ["git", "-C", str(repo_path), "show-ref", "--verify", f"refs/heads/{branch}"],
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
+
+    def _is_worktree_dirty(self, worktree_path: Path) -> bool:
+        result = subprocess.run(
+            ["git", "-C", str(worktree_path), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+        )
+        return bool(result.stdout.strip())
+
+    def _slugify(self, value: str) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip().lower())
+        normalized = normalized.strip("._-")
+        return normalized
 
     def _generate_id(self, value: str) -> str:
         """Generate a stable ID from a value."""
@@ -702,6 +1111,7 @@ class WorkspaceInventoryService:
                 CREATE TABLE IF NOT EXISTS workspaces (
                     workspace_id TEXT PRIMARY KEY,
                     repository_id TEXT NOT NULL,
+                    workspace_name TEXT NOT NULL,
                     path TEXT NOT NULL,
                     branch TEXT NOT NULL,
                     head_sha TEXT NOT NULL,
@@ -721,13 +1131,32 @@ class WorkspaceInventoryService:
                 )
             if "last_commit_at" not in repo_columns:
                 connection.execute("ALTER TABLE repositories ADD COLUMN last_commit_at TEXT")
+            workspace_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(workspaces)").fetchall()
+            }
+            if "workspace_name" not in workspace_columns:
+                connection.execute(
+                    "ALTER TABLE workspaces ADD COLUMN workspace_name TEXT NOT NULL DEFAULT ''"
+                )
+                connection.execute(
+                    "UPDATE workspaces SET workspace_name = '' WHERE workspace_name IS NULL"
+                )
 
     def _upsert_repository(self, repo: RepositoryInfo) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO repositories (
-                    repository_id, name, root_path, origin_url, default_branch, status, last_seen_at, last_fetched_at, last_commit_at
+                    repository_id,
+                    name,
+                    root_path,
+                    origin_url,
+                    default_branch,
+                    status,
+                    last_seen_at,
+                    last_fetched_at,
+                    last_commit_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(repository_id) DO UPDATE SET
@@ -753,6 +1182,14 @@ class WorkspaceInventoryService:
                 ),
             )
 
+    def _delete_repositories_by_paths(self, paths: set[str]) -> None:
+        with self._connect() as connection:
+            for path in paths:
+                connection.execute(
+                    "DELETE FROM repositories WHERE root_path = ?",
+                    (path,),
+                )
+
     def _upsert_workspace(self, workspace: WorkspaceInfo) -> None:
         with self._connect() as connection:
             connection.execute(
@@ -760,6 +1197,7 @@ class WorkspaceInventoryService:
                 INSERT INTO workspaces (
                     workspace_id,
                     repository_id,
+                    workspace_name,
                     path,
                     branch,
                     head_sha,
@@ -767,9 +1205,10 @@ class WorkspaceInventoryService:
                     status,
                     last_seen_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(workspace_id) DO UPDATE SET
                     repository_id=excluded.repository_id,
+                    workspace_name=excluded.workspace_name,
                     path=excluded.path,
                     branch=excluded.branch,
                     head_sha=excluded.head_sha,
@@ -780,6 +1219,7 @@ class WorkspaceInventoryService:
                 (
                     workspace.workspace_id,
                     workspace.repository_id,
+                    workspace.workspace_name,
                     workspace.path,
                     workspace.branch,
                     workspace.head_sha,
@@ -828,6 +1268,7 @@ class WorkspaceInventoryService:
                 SELECT
                     workspace_id,
                     repository_id,
+                    workspace_name,
                     path,
                     branch,
                     head_sha,
@@ -841,6 +1282,9 @@ class WorkspaceInventoryService:
             WorkspaceInfo(
                 workspace_id=row["workspace_id"],
                 repository_id=row["repository_id"],
+                workspace_name=(
+                    row["workspace_name"] or Path(row["path"]).name or row["workspace_id"]
+                ),
                 path=row["path"],
                 branch=row["branch"],
                 head_sha=row["head_sha"],

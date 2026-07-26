@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from src.models.schemas import MCPCallRequest
+from src.services.credential_store import CredentialStoreError, credential_store
 from src.services.file_operations import read_file, write_file
 from src.services.git_operations import (
     OperationError,
@@ -19,13 +20,30 @@ from src.services.workspace_inventory import inventory_service
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
+def _credential_payload(item: Any) -> dict[str, str | bool | None]:
+    return {
+        "credential_id": item.credential_id,
+        "name": item.name,
+        "provider": item.provider,
+        "host": item.host,
+        "username": item.username,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+        "revoked_at": item.revoked_at,
+        "is_active": item.is_active,
+    }
+
+
 def _clone(args: dict[str, Any]) -> dict[str, str]:
     destination = args.get("destination")
     if destination is None and "path" in args:
         destination = args["path"]
     destination_value = None if destination is None else str(destination)
     url = str(args["url"])
-    output = clone_repo(url, destination_value)
+    credential = None
+    if "credential_id" in args:
+        credential = credential_store.get_credential_for_use(str(args["credential_id"]), url)
+    output = clone_repo(url, destination_value, credential=credential)
     clone_target = resolve_clone_target(url, destination_value)
     inventory_service.register_cloned_repository(
         root_path=clone_target,
@@ -60,7 +78,40 @@ def _exec(args: dict[str, Any]) -> dict[str, str]:
     return {"output": exec_cmd(str(args["cmd"]))}
 
 
-ToolFn = Callable[[dict[str, Any]], dict[str, str]]
+def _credential_list(args: dict[str, Any]) -> dict[str, list[dict[str, str | bool | None]]]:
+    del args
+    items = credential_store.list_credentials()
+    return {"credentials": [_credential_payload(item) for item in items]}
+
+
+def _credential_create(args: dict[str, Any]) -> dict[str, str | bool | None]:
+    item = credential_store.create_credential(
+        name=str(args["name"]),
+        provider=str(args["provider"]),
+        host=str(args["host"]),
+        username=str(args.get("username", "oauth2")),
+        secret=str(args["secret"]),
+    )
+    return _credential_payload(item)
+
+
+def _credential_update(args: dict[str, Any]) -> dict[str, str | bool | None]:
+    item = credential_store.update_credential(
+        str(args["credential_id"]),
+        name=None if "name" not in args else str(args["name"]),
+        host=None if "host" not in args else str(args["host"]),
+        username=None if "username" not in args else str(args["username"]),
+        secret=None if "secret" not in args else str(args["secret"]),
+    )
+    return _credential_payload(item)
+
+
+def _credential_revoke(args: dict[str, Any]) -> dict[str, str | bool | None]:
+    item = credential_store.revoke_credential(str(args["credential_id"]))
+    return _credential_payload(item)
+
+
+ToolFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 TOOLS: dict[str, dict[str, Any]] = {
     "git.clone": {"fn": _clone, "description": "Clone a git repository"},
@@ -70,6 +121,10 @@ TOOLS: dict[str, dict[str, Any]] = {
     "workspace.read_file": {"fn": _read_file, "description": "Read a file from workspace"},
     "workspace.write_file": {"fn": _write_file, "description": "Write a file in workspace"},
     "workspace.exec": {"fn": _exec, "description": "Execute a command in workspace"},
+    "credentials.list": {"fn": _credential_list, "description": "List credential metadata"},
+    "credentials.create": {"fn": _credential_create, "description": "Create a secure credential"},
+    "credentials.update": {"fn": _credential_update, "description": "Update or rotate a credential"},
+    "credentials.revoke": {"fn": _credential_revoke, "description": "Revoke a credential"},
 }
 
 
@@ -94,5 +149,5 @@ def call_tool(request: MCPCallRequest) -> dict[str, Any]:
         return {"tool": request.tool, "ok": True, "result": result}
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"Missing argument: {exc.args[0]}") from exc
-    except OperationError as exc:
+    except (OperationError, CredentialStoreError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 from src.core import events
+from src.services.credential_store import CredentialForUse
 from src.services import git_operations
 from src.services.git_operations import OperationError
 
@@ -79,6 +80,50 @@ def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert captured["cmd"] == ["git", "clone", "https://example/repo.git"]
     assert captured["cwd"] == git_operations.WORKSPACE
+
+
+def test_t_git_clone_with_credential_uses_authenticated_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-CREDENTIAL-URL"""
+    captured = {}
+
+    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+        captured["cmd"] = cmd
+        return DummyCompleted(0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    git_operations.clone_repo(
+        "https://gitlab.com/group/repo.git",
+        credential=CredentialForUse(
+            credential_id="cred-1",
+            provider="gitlab",
+            host="gitlab.com",
+            username="oauth2",
+            secret="abc123",
+        ),
+    )
+
+    assert captured["cmd"] == ["git", "clone", "https://oauth2:abc123@gitlab.com/group/repo.git"]
+
+
+def test_t_git_clone_redacts_secret_from_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-SECRET-REDACT"""
+
+    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+        return DummyCompleted(1, "", "fatal: https://oauth2:abc123@gitlab.com/group/repo.git not found")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(OperationError) as exc_info:
+        git_operations.clone_repo(
+            "https://gitlab.com/group/repo.git",
+            credential=CredentialForUse(
+                credential_id="cred-1",
+                provider="gitlab",
+                host="gitlab.com",
+                username="oauth2",
+                secret="abc123",
+            ),
+        )
+    assert "abc123" not in str(exc_info.value)
 
 
 def test_t_git_resolve_clone_target_from_url(monkeypatch: pytest.MonkeyPatch) -> None:

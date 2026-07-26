@@ -5,6 +5,7 @@ Test IDs map to spec requirements in docs/specs/ui/webui.md section 8.
 from __future__ import annotations
 
 import sqlite3
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -48,6 +49,7 @@ def sample_workspace() -> WorkspaceInfo:
     return WorkspaceInfo(
         workspace_id="ws-abc",
         repository_id="repo-123",
+        workspace_name="ws-abc",
         path="/workspace/workspaces/repo-manager/ws-abc",
         branch="feature/webui",
         head_sha="abc123def456",
@@ -97,6 +99,7 @@ class TestInventorySchemas:
         ws = WorkspaceInfo(
             workspace_id="ws-1",
             repository_id="repo-1",
+            workspace_name="ws-1",
             path="/workspace/workspaces/test/ws-1",
             branch="main",
             head_sha="abc123",
@@ -168,6 +171,7 @@ class TestWorkspaceInventoryService:
         service.add_workspace(
             workspace_id="ws-1",
             repository_id="repo-1",
+            workspace_name="ws-1",
             path=str(tmp_path / "workspaces" / "ws-1"),
             branch="main",
             head_sha="abc123",
@@ -183,7 +187,7 @@ class TestWorkspaceInventoryService:
     def test_database_mode_persists_across_instances(self, tmp_path: Path) -> None:
         """Database mode persists inventory records in SQLite."""
         db_path = tmp_path / "inventory.sqlite3"
-        WorkspaceInventoryService(
+        writer = WorkspaceInventoryService(
             source_mode="database",
             workspace_roots=[str(tmp_path)],
             inventory_db_path=str(db_path),
@@ -219,8 +223,14 @@ class TestWorkspaceInventoryService:
         refs_dir.mkdir(parents=True)
         (refs_dir / "main").write_text("1234567890abcdef1234567890abcdef12345678\n")
         (git_dir / "logs").mkdir()
+        commit_log_line = (
+            "0" * 40
+            + " "
+            + "1" * 40
+            + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+        )
         (git_dir / "logs" / "HEAD").write_text(
-            "0" * 40 + " " + "1" * 40 + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+            commit_log_line
         )
         (git_dir / "FETCH_HEAD").write_text("fetch data")
 
@@ -233,7 +243,15 @@ class TestWorkspaceInventoryService:
             connection.execute(
                 """
                 INSERT INTO repositories (
-                    repository_id, name, root_path, origin_url, default_branch, status, last_seen_at, last_fetched_at, last_commit_at
+                    repository_id,
+                    name,
+                    root_path,
+                    origin_url,
+                    default_branch,
+                    status,
+                    last_seen_at,
+                    last_fetched_at,
+                    last_commit_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -310,8 +328,14 @@ class TestWorkspaceInventoryService:
             "[remote \"origin\"]\n\turl = https://github.com/test/repo.git\n"
         )
         (git_dir / "logs").mkdir()
+        commit_log_line = (
+            "0" * 40
+            + " "
+            + "1" * 40
+            + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+        )
         (git_dir / "logs" / "HEAD").write_text(
-            "0" * 40 + " " + "1" * 40 + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+            commit_log_line
         )
         (git_dir / "FETCH_HEAD").write_text("fetch data")
 
@@ -349,10 +373,24 @@ class TestWorkspaceInventoryService:
         assert inventory.repositories[0].name == "existing-repo"
 
     def test_filesystem_mode_discovers_linked_worktree(self, tmp_path: Path) -> None:
-        """T-UI-INV-FS-WORKTREE-LINK: Filesystem mode handles .git file worktrees."""
-        worktree_path = tmp_path / "linked-worktree"
+        """T-UI-INV-FS-WORKTREE-LINK: Linked worktrees are workspaces, not repositories."""
+        repos_root = tmp_path / "repos"
+        worktrees_root = tmp_path / "worktrees"
+        repos_root.mkdir()
+        worktrees_root.mkdir()
+
+        repo_path = repos_root / "primary-repo"
+        repo_path.mkdir()
+        repo_git = repo_path / ".git"
+        repo_git.mkdir()
+        (repo_git / "HEAD").write_text("ref: refs/heads/main\n")
+        repo_refs = repo_git / "refs" / "heads"
+        repo_refs.mkdir(parents=True)
+        (repo_refs / "main").write_text("1234567890abcdef1234567890abcdef12345678\n")
+
+        worktree_path = worktrees_root / "linked-worktree"
         worktree_path.mkdir()
-        git_meta = tmp_path / ".git" / "worktrees" / "linked-worktree"
+        git_meta = repo_git / "worktrees" / "linked-worktree"
         git_meta.mkdir(parents=True)
         (worktree_path / ".git").write_text(f"gitdir: {git_meta}\n")
         (git_meta / "HEAD").write_text("ref: refs/heads/feature/test\n")
@@ -363,15 +401,67 @@ class TestWorkspaceInventoryService:
             "[remote \"origin\"]\n\turl = https://github.com/test/linked-worktree.git\n"
         )
 
-        service = WorkspaceInventoryService(
-            source_mode="filesystem", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="filesystem", workspace_roots=[
+            str(repos_root),
+            str(worktrees_root),
+        ])
         inventory = service.get_inventory()
 
-        found = [r for r in inventory.repositories if r.name == "linked-worktree"]
-        assert len(found) == 1
-        assert found[0].status == "ready"
-        assert found[0].default_branch == "feature/test"
+        repo_entries = [r for r in inventory.repositories if r.name == "primary-repo"]
+        assert len(repo_entries) == 1
+        assert repo_entries[0].status == "ready"
+
+        linked_workspace = [
+            ws for ws in inventory.workspaces if ws.path == str(worktree_path.resolve())
+        ]
+        assert len(linked_workspace) == 1
+        assert linked_workspace[0].branch == "feature/test"
+        assert linked_workspace[0].repository_id == repo_entries[0].repository_id
+
+    def test_rescan_removes_worktree_paths_from_repositories(self, tmp_path: Path) -> None:
+        """Database rescan drops repositories that are actually linked worktree paths."""
+        repos_root = tmp_path / "repos"
+        worktrees_root = tmp_path / "worktrees"
+        repos_root.mkdir()
+        worktrees_root.mkdir()
+
+        repo_path = repos_root / "primary-repo"
+        repo_path.mkdir()
+        repo_git = repo_path / ".git"
+        repo_git.mkdir()
+        (repo_git / "HEAD").write_text("ref: refs/heads/main\n")
+        repo_refs = repo_git / "refs" / "heads"
+        repo_refs.mkdir(parents=True)
+        (repo_refs / "main").write_text("1234567890abcdef1234567890abcdef12345678\n")
+
+        worktree_path = worktrees_root / "linked-worktree"
+        worktree_path.mkdir()
+        git_meta = repo_git / "worktrees" / "linked-worktree"
+        git_meta.mkdir(parents=True)
+        (worktree_path / ".git").write_text(f"gitdir: {git_meta}\n")
+        (git_meta / "HEAD").write_text("ref: refs/heads/feature/test\n")
+        refs_dir = git_meta / "refs" / "heads" / "feature"
+        refs_dir.mkdir(parents=True)
+        (refs_dir / "test").write_text("1234567890abcdef1234567890abcdef12345678\n")
+
+        service = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(repos_root), str(worktrees_root)],
+            inventory_db_path=str(tmp_path / "inventory.sqlite3"),
+        )
+        service.add_repository(
+            repository_id="bad-linked-worktree-repo",
+            name="linked-worktree",
+            root_path=str(worktree_path.resolve()),
+            origin_url="https://github.com/test/linked-worktree.git",
+            default_branch="feature/test",
+        )
+
+        inventory = service.rescan([str(repos_root), str(worktrees_root)])
+        repo_paths = {repo.root_path for repo in inventory.repositories}
+
+        assert str(worktree_path.resolve()) not in repo_paths
+        assert str(repo_path.resolve()) in repo_paths
 
     def test_invalid_git_metadata_status(self, tmp_path: Path) -> None:
         """T-UI-INV-INVALID-GIT: Unreadable git metadata marked invalid_git_metadata."""
@@ -390,6 +480,169 @@ class TestWorkspaceInventoryService:
         found = [r for r in inventory.repositories if "broken-repo" in r.name]
         assert len(found) == 1
         assert found[0].status == "invalid_git_metadata"
+
+    def test_create_workspace_creates_worktree_under_worktrees_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Create workspace uses /workspace/worktrees naming and registers inventory."""
+        workspace_root = tmp_path / "workspace"
+        workspace_root.mkdir()
+        monkeypatch.setattr("src.services.workspace_inventory.WORKSPACE", str(workspace_root))
+
+        repo_path = workspace_root / "repo-a"
+        repo_path.mkdir()
+        repo_git = repo_path / ".git"
+        repo_git.mkdir()
+        (repo_git / "HEAD").write_text("ref: refs/heads/main\n")
+        refs = repo_git / "refs" / "heads"
+        refs.mkdir(parents=True)
+        (refs / "main").write_text("1234567890abcdef1234567890abcdef12345678\n")
+
+        service = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(workspace_root)],
+            inventory_db_path=str(workspace_root / "inventory.sqlite3"),
+        )
+        repo = service.add_repository(
+            repository_id="repo-a",
+            name="repo-a",
+            root_path=str(repo_path),
+            origin_url="https://example.com/repo-a.git",
+            default_branch="main",
+        )
+
+        def fake_run(
+            cmd: list[str],
+            capture_output: bool = True,
+            text: bool = True,
+            check: bool = False,
+        ):
+            if "show-ref" in cmd:
+                return subprocess.CompletedProcess(cmd, 1, "", "")
+            if "worktree" in cmd and "add" in cmd:
+                destination = Path(cmd[-2])
+                destination.mkdir(parents=True, exist_ok=True)
+                git_meta = workspace_root / ".git" / "worktrees" / destination.name
+                git_meta.mkdir(parents=True, exist_ok=True)
+                (destination / ".git").write_text(f"gitdir: {git_meta}\n")
+                (git_meta / "HEAD").write_text("ref: refs/heads/feature/new\n")
+                feature_ref = git_meta / "refs" / "heads" / "feature"
+                feature_ref.mkdir(parents=True, exist_ok=True)
+                (feature_ref / "new").write_text("abcdef1234567890abcdef1234567890abcdef12\n")
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            if "status" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr("src.services.workspace_inventory.subprocess.run", fake_run)
+        created = service.create_workspace(repository_id=repo.repository_id, branch="feature/new")
+
+        expected_root = (workspace_root / "worktrees").resolve()
+        assert Path(created.path).resolve().parent == expected_root
+        assert created.repository_id == repo.repository_id
+        assert created.branch == "feature/new"
+        assert created.status == "ready"
+
+    def test_remove_workspace_deletes_inventory_record(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Removing workspace runs git worktree remove and drops DB record."""
+        service = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(tmp_path / "inventory.sqlite3"),
+        )
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        (repo_path / ".git").mkdir()
+        (repo_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+        service.add_repository(
+            repository_id="repo-1",
+            name="repo",
+            root_path=str(repo_path),
+            origin_url="https://example.com/repo.git",
+            default_branch="main",
+        )
+        workspace_path = tmp_path / "worktrees" / "repo-ws"
+        workspace_path.mkdir(parents=True)
+        service.add_workspace(
+            workspace_id="ws-1",
+            repository_id="repo-1",
+            workspace_name="repo-ws",
+            path=str(workspace_path),
+            branch="main",
+            head_sha="abc123",
+        )
+
+        captured: dict[str, list[str]] = {}
+
+        def fake_run(
+            cmd: list[str],
+            capture_output: bool = True,
+            text: bool = True,
+            check: bool = False,
+        ):
+            captured["cmd"] = cmd
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr("src.services.workspace_inventory.subprocess.run", fake_run)
+        service.remove_workspace("ws-1")
+
+        assert captured["cmd"][:5] == ["git", "-C", str(repo_path), "worktree", "remove"]
+        assert captured["cmd"][5] == str(workspace_path)
+        assert not any(ws.workspace_id == "ws-1" for ws in service.get_inventory().workspaces)
+
+    def test_rename_repository_updates_name(self, tmp_path: Path) -> None:
+        """Repository rename persists updated display name."""
+        service = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(tmp_path / "inventory.sqlite3"),
+        )
+        service.add_repository(
+            repository_id="repo-1",
+            name="old-repo-name",
+            root_path=str(tmp_path / "repo"),
+            origin_url="https://example.com/repo.git",
+            default_branch="main",
+        )
+
+        updated = service.rename_repository("repo-1", "new-repo-name")
+        assert updated.name == "new-repo-name"
+        inventory = service.get_inventory()
+        assert inventory.repositories[0].name == "new-repo-name"
+
+    def test_rename_workspace_updates_name(self, tmp_path: Path) -> None:
+        """Workspace rename persists updated display name."""
+        service = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(tmp_path / "inventory.sqlite3"),
+        )
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        (repo_path / ".git").mkdir()
+        (repo_path / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+        service.add_repository(
+            repository_id="repo-1",
+            name="repo",
+            root_path=str(repo_path),
+            origin_url="https://example.com/repo.git",
+            default_branch="main",
+        )
+        service.add_workspace(
+            workspace_id="ws-1",
+            repository_id="repo-1",
+            workspace_name="old-workspace-name",
+            path=str(tmp_path / "worktrees" / "ws-1"),
+            branch="main",
+            head_sha="abc123",
+        )
+
+        updated = service.rename_workspace("ws-1", "new-workspace-name")
+        assert updated.workspace_name == "new-workspace-name"
+        inventory = service.get_inventory()
+        assert inventory.workspaces[0].workspace_name == "new-workspace-name"
 
 
 class TestInventoryEndpoint:
@@ -455,6 +708,7 @@ class TestInventoryEndpoint:
         ws = data["workspaces"][0]
         assert "workspace_id" in ws
         assert "repository_id" in ws
+        assert "workspace_name" in ws
         assert "path" in ws
         assert "branch" in ws
         assert "head_sha" in ws
@@ -547,6 +801,113 @@ class TestInventoryEndpoint:
             resp = client.post("/api/v1/ui/repositories/repo-123/fetch")
 
         assert resp.status_code == 400
+
+    def test_t_ui_workspaces_create_200(
+        self,
+        client: TestClient,
+        sample_workspace: WorkspaceInfo,
+    ) -> None:
+        """POST /ui/workspaces creates and returns workspace."""
+        with patch(
+            "src.api.ui.inventory_service.create_workspace",
+            return_value=sample_workspace,
+        ):
+            resp = client.post(
+                "/api/v1/ui/workspaces",
+                json={"repository_id": "repo-123", "branch": "feature/new"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["workspace_id"] == "ws-abc"
+
+    def test_t_ui_workspaces_create_404(self, client: TestClient) -> None:
+        """POST /ui/workspaces returns 404 when repository is missing."""
+        with patch(
+            "src.api.ui.inventory_service.create_workspace",
+            side_effect=InventoryError("Repository not found: missing"),
+        ):
+            resp = client.post(
+                "/api/v1/ui/workspaces",
+                json={"repository_id": "missing", "branch": "feature/new"},
+            )
+
+        assert resp.status_code == 404
+
+    def test_t_ui_workspaces_delete_200(self, client: TestClient) -> None:
+        """DELETE /ui/workspaces/{workspace_id} removes workspace."""
+        with patch("src.api.ui.inventory_service.remove_workspace", return_value=None):
+            resp = client.delete("/api/v1/ui/workspaces/ws-abc")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+
+    def test_t_ui_workspaces_delete_404(self, client: TestClient) -> None:
+        """DELETE /ui/workspaces/{workspace_id} returns 404 when missing."""
+        with patch(
+            "src.api.ui.inventory_service.remove_workspace",
+            side_effect=InventoryError("Workspace not found: ws-missing"),
+        ):
+            resp = client.delete("/api/v1/ui/workspaces/ws-missing")
+
+        assert resp.status_code == 404
+
+    def test_t_ui_repositories_rename_200(
+        self,
+        client: TestClient,
+        sample_repository: RepositoryInfo,
+    ) -> None:
+        """PATCH /ui/repositories/{repository_id} renames repository."""
+        renamed = RepositoryInfo(
+            repository_id=sample_repository.repository_id,
+            name="renamed-repo",
+            root_path=sample_repository.root_path,
+            origin_url=sample_repository.origin_url,
+            default_branch=sample_repository.default_branch,
+            status=sample_repository.status,
+            last_seen_at=sample_repository.last_seen_at,
+            last_fetched_at=sample_repository.last_fetched_at,
+            last_commit_at=sample_repository.last_commit_at,
+        )
+        with patch(
+            "src.api.ui.inventory_service.rename_repository",
+            return_value=renamed,
+        ):
+            resp = client.patch(
+                "/api/v1/ui/repositories/repo-123",
+                json={"name": "renamed-repo"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "renamed-repo"
+
+    def test_t_ui_workspaces_rename_200(
+        self,
+        client: TestClient,
+        sample_workspace: WorkspaceInfo,
+    ) -> None:
+        """PATCH /ui/workspaces/{workspace_id} renames workspace."""
+        renamed = WorkspaceInfo(
+            workspace_id=sample_workspace.workspace_id,
+            repository_id=sample_workspace.repository_id,
+            workspace_name="renamed-workspace",
+            path=sample_workspace.path,
+            branch=sample_workspace.branch,
+            head_sha=sample_workspace.head_sha,
+            is_dirty=sample_workspace.is_dirty,
+            status=sample_workspace.status,
+            last_seen_at=sample_workspace.last_seen_at,
+        )
+        with patch(
+            "src.api.ui.inventory_service.rename_workspace",
+            return_value=renamed,
+        ):
+            resp = client.patch(
+                "/api/v1/ui/workspaces/ws-abc",
+                json={"workspace_name": "renamed-workspace"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["workspace_name"] == "renamed-workspace"
 
     def test_t_ui_inventory_no_secrets(
         self,

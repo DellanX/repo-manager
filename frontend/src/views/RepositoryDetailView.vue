@@ -11,6 +11,15 @@ const props = defineProps<{
 const store = useInventoryStore()
 const fetchError = ref<string | null>(null)
 const fetchSuccess = ref<string | null>(null)
+const renameError = ref<string | null>(null)
+const renameSuccess = ref<string | null>(null)
+const showRenameForm = ref(false)
+const repositoryNameInput = ref('')
+const workspaceError = ref<string | null>(null)
+const workspaceSuccess = ref<string | null>(null)
+const showWorkspaceForm = ref(false)
+const workspaceBranch = ref('main')
+const workspaceName = ref('')
 const now = ref(Date.now())
 let nowTimer: ReturnType<typeof setInterval> | null = null
 
@@ -80,6 +89,63 @@ async function fetchLatest() {
     fetchError.value = error instanceof Error ? error.message : 'Failed to fetch repository.'
   }
 }
+
+async function submitCreateWorkspace() {
+  const repo = repository.value
+  workspaceError.value = null
+  workspaceSuccess.value = null
+  if (!repo) {
+    workspaceError.value = 'Repository not found.'
+    return
+  }
+  try {
+    const created = await store.createWorkspace(
+      repo.repository_id,
+      workspaceBranch.value.trim(),
+      workspaceName.value.trim() || undefined
+    )
+    workspaceSuccess.value = `Created workspace ${created.workspace_id}.`
+    showWorkspaceForm.value = false
+    workspaceBranch.value = repo.default_branch || 'main'
+    workspaceName.value = ''
+  } catch (error) {
+    workspaceError.value = error instanceof Error ? error.message : 'Failed to create workspace.'
+  }
+}
+
+function openWorkspaceForm() {
+  workspaceError.value = null
+  workspaceSuccess.value = null
+  showWorkspaceForm.value = true
+  workspaceBranch.value = repository.value?.default_branch || 'main'
+}
+
+function openRenameForm() {
+  if (!repository.value) {
+    return
+  }
+  renameError.value = null
+  renameSuccess.value = null
+  showRenameForm.value = true
+  repositoryNameInput.value = repository.value.name
+}
+
+async function submitRenameRepository() {
+  const repo = repository.value
+  renameError.value = null
+  renameSuccess.value = null
+  if (!repo) {
+    renameError.value = 'Repository not found.'
+    return
+  }
+  try {
+    const updated = await store.renameRepository(repo.repository_id, repositoryNameInput.value.trim())
+    renameSuccess.value = `Repository renamed to ${updated.name}.`
+    showRenameForm.value = false
+  } catch (error) {
+    renameError.value = error instanceof Error ? error.message : 'Failed to rename repository.'
+  }
+}
 </script>
 
 <template>
@@ -90,7 +156,8 @@ async function fetchLatest() {
           <AppButton>Clone New</AppButton>
         </RouterLink>
         <AppButton :disabled="store.loading" @click="fetchLatest()">Fetch</AppButton>
-        <AppButton>Create Workspace</AppButton>
+        <AppButton :disabled="store.loading" @click="openRenameForm()">Rename Repository</AppButton>
+        <AppButton :disabled="store.loading" @click="openWorkspaceForm()">Create Workspace</AppButton>
         <RouterLink to="/config/credentials">
           <AppButton>Manage Credentials</AppButton>
         </RouterLink>
@@ -102,6 +169,80 @@ async function fetchLatest() {
 
     <p v-if="fetchSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">{{ fetchSuccess }}</p>
     <p v-if="fetchError" class="mb-4 text-sm text-red-600 dark:text-red-400">{{ fetchError }}</p>
+    <p v-if="renameSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">
+      {{ renameSuccess }}
+    </p>
+    <p v-if="renameError" class="mb-4 text-sm text-red-600 dark:text-red-400">
+      {{ renameError }}
+    </p>
+    <p v-if="workspaceSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">
+      {{ workspaceSuccess }}
+    </p>
+    <p v-if="workspaceError" class="mb-4 text-sm text-red-600 dark:text-red-400">
+      {{ workspaceError }}
+    </p>
+
+    <form
+      v-if="showRenameForm"
+      class="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-6 space-y-4"
+      @submit.prevent="submitRenameRepository"
+    >
+      <h2 class="text-lg font-medium">Rename Repository</h2>
+      <div>
+        <label for="rename-repository-name" class="block text-sm font-medium mb-1">Repository Name</label>
+        <input
+          id="rename-repository-name"
+          v-model="repositoryNameInput"
+          type="text"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          placeholder="repo-name"
+        >
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <AppButton type="submit" :disabled="store.loading || repositoryNameInput.trim().length === 0">
+          Save
+        </AppButton>
+        <AppButton type="button" variant="secondary" :disabled="store.loading" @click="showRenameForm = false">
+          Cancel
+        </AppButton>
+      </div>
+    </form>
+
+    <form
+      v-if="showWorkspaceForm"
+      class="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-6 space-y-4"
+      @submit.prevent="submitCreateWorkspace"
+    >
+      <h2 class="text-lg font-medium">Create Workspace</h2>
+      <div>
+        <label for="repo-workspace-branch" class="block text-sm font-medium mb-1">Branch</label>
+        <input
+          id="repo-workspace-branch"
+          v-model="workspaceBranch"
+          type="text"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          placeholder="feature/my-branch"
+        >
+      </div>
+      <div>
+        <label for="repo-workspace-name" class="block text-sm font-medium mb-1">Workspace Name (optional)</label>
+        <input
+          id="repo-workspace-name"
+          v-model="workspaceName"
+          type="text"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          placeholder="my-worktree"
+        >
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <AppButton type="submit" :disabled="store.loading || workspaceBranch.trim().length === 0">
+          Create
+        </AppButton>
+        <AppButton type="button" variant="secondary" :disabled="store.loading" @click="showWorkspaceForm = false">
+          Cancel
+        </AppButton>
+      </div>
+    </form>
 
     <div class="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-6 mb-8">
       <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

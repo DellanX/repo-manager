@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 class CloneRequest(BaseModel):
     url: str
     destination: str | None = None
+    credential_id: str | None = None
 
 
 class CheckoutRequest(BaseModel):
@@ -39,8 +40,52 @@ class MCPCallRequest(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
+CredentialProvider = Literal["github", "gitlab", "azure_devops", "generic"]
+
+
+class CredentialCreateRequest(BaseModel):
+    name: str
+    provider: CredentialProvider
+    host: str
+    username: str = "oauth2"
+    secret: str
+
+
+class CredentialUpdateRequest(BaseModel):
+    name: str | None = None
+    host: str | None = None
+    username: str | None = None
+    secret: str | None = None
+
+
+class CredentialResponse(BaseModel):
+    credential_id: str
+    name: str
+    provider: CredentialProvider
+    host: str
+    username: str
+    created_at: str
+    updated_at: str
+    revoked_at: str | None
+    is_active: bool
+
+
 class InventoryRescanRequest(BaseModel):
     roots: list[str] = Field(default_factory=list)
+
+
+class WorkspaceCreateRequest(BaseModel):
+    repository_id: str
+    branch: str
+    workspace_name: str | None = None
+
+
+class RepositoryRenameRequest(BaseModel):
+    name: str
+
+
+class WorkspaceRenameRequest(BaseModel):
+    workspace_name: str
 
 
 # Web UI Inventory Schemas (per docs/specs/ui/webui.md)
@@ -80,6 +125,7 @@ class WorkspaceInfo(BaseModel):
     workspace_id: str = Field(...,
                               description="Stable unique workspace identifier")
     repository_id: str = Field(..., description="Parent repository ID")
+    workspace_name: str = Field(..., description="Workspace display name")
     path: str = Field(..., description="Normalized absolute path to workspace")
     branch: str = Field(..., description="Current branch name")
     head_sha: str = Field(..., description="Current HEAD commit SHA")

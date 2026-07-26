@@ -44,6 +44,7 @@ def sample_workspace() -> WorkspaceInfo:
     return WorkspaceInfo(
         workspace_id="ws-abc",
         repository_id="repo-123",
+        workspace_name="ws-abc",
         path="/workspace/workspaces/repo-manager/ws-abc",
         branch="feature/webui",
         head_sha="abc123def456",

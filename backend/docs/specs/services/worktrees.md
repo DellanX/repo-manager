@@ -26,10 +26,6 @@ Support multiple isolated sandboxes for the same repository using git worktrees,
 - Input: repository ID and workspace ID.
 - Behavior: removes worktree safely, with force flag policy.
 
-4. Switch active workspace context
-- Input: repository ID and workspace ID.
-- Behavior: updates operation context for file and git commands.
-
 ## MCP Requirements
 
 MCP must expose first-class tools:
@@ -37,9 +33,8 @@ MCP must expose first-class tools:
 - `workspace.create_worktree`
 - `workspace.list_worktrees`
 - `workspace.remove_worktree`
-- `workspace.select_worktree`
 
-All existing git and file tools must accept optional `workspace_id` for explicit routing.
+All existing git and file tools should be routed with explicit workspace context rather than relying on global active-workspace selection.
 
 ## Invariants
 

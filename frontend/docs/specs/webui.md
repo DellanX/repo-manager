@@ -82,11 +82,13 @@ Minimum actions:
    - `POST /ui/workspaces` -> delegates to worktree create capability.
 3. Remove worktree workspace
    - `DELETE /ui/workspaces/{workspace_id}` -> delegates to worktree remove capability.
-4. Select active workspace
-   - `POST /ui/workspaces/{workspace_id}/select` -> delegates to worktree select capability.
-5. Rescan inventory roots
+4. Rename repository
+   - `PATCH /ui/repositories/{repository_id}` with `{ "name": ... }`.
+5. Rename workspace
+   - `PATCH /ui/workspaces/{workspace_id}` with `{ "workspace_name": ... }`.
+6. Rescan inventory roots
    - `POST /ui/inventory/rescan` with `{ "roots": ["/workspace/repos", "/workspace/worktrees"] }`.
-6. Fetch repository remotes
+7. Fetch repository remotes
    - `POST /ui/repositories/{repository_id}/fetch` -> runs `git fetch --prune origin` for that repository and refreshes repository metadata timestamps.
 
 All mutation responses must return deterministic status and error payloads aligned with API standards.

@@ -16,7 +16,7 @@ def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
-    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None: "cloned")
+    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None, credential=None: "cloned")
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "cloned"}
@@ -31,7 +31,7 @@ def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPat
         lambda root_path, origin_url: None,
     )
 
-    def fake_clone(url: str, destination: str | None = None) -> str:
+    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
         called["url"] = url
         called["destination"] = destination
         return "cloned"
@@ -46,6 +46,44 @@ def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPat
         "url": "https://example/repo.git",
         "destination": "repos/repo-manager-copy",
     }
+
+
+def test_t_rest_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CLONE-CREDENTIAL-ID-200"""
+    called = {}
+
+    class DummyCredential:
+        credential_id = "cred-1"
+        provider = "gitlab"
+        host = "gitlab.com"
+        username = "oauth2"
+        secret = "token-value"
+
+    monkeypatch.setattr(
+        "src.api.rest.credential_store.get_credential_for_use",
+        lambda credential_id, url: DummyCredential(),
+    )
+    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
+
+    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
+        called["url"] = url
+        called["destination"] = destination
+        called["credential"] = credential
+        return "cloned"
+
+    monkeypatch.setattr("src.api.rest.clone_repo", fake_clone)
+    resp = client.post(
+        "/api/v1/clone",
+        json={"url": "https://gitlab.com/group/repo.git", "credential_id": "cred-1"},
+    )
+    assert resp.status_code == 200
+    assert called["url"] == "https://gitlab.com/group/repo.git"
+    assert called["destination"] is None
+    assert called["credential"].credential_id == "cred-1"
 
 
 def test_t_rest_checkout_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -126,7 +164,7 @@ def test_t_rest_file_get_missing_maps_404(client, monkeypatch: pytest.MonkeyPatc
 def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-OP-ERROR-400"""
 
-    def fail(url: str, destination: str | None = None) -> str:
+    def fail(url: str, destination: str | None = None, credential=None) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.rest.clone_repo", fail)
@@ -139,7 +177,7 @@ def test_t_rest_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatc
     """T-REST-CLONE-INV-REGISTER"""
     captured = {}
 
-    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None: "cloned")
+    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None, credential=None: "cloned")
     monkeypatch.setattr(
         "src.api.rest.resolve_clone_target",
         lambda url, destination=None: "/workspace/repo-manager-copy",
@@ -217,6 +255,122 @@ def test_t_rest_exec_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> 
     resp = client.post("/api/v1/exec", json={"cmd": "git status"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "exec failed"
+
+
+def test_t_rest_credential_list_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CREDENTIAL-LIST-200"""
+    monkeypatch.setattr(
+        "src.api.rest.credential_store.list_credentials",
+        lambda: [
+            type(
+                "Meta",
+                (),
+                {
+                    "credential_id": "cred-1",
+                    "name": "GitLab PAT",
+                    "provider": "gitlab",
+                    "host": "gitlab.com",
+                    "username": "oauth2",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "revoked_at": None,
+                    "is_active": True,
+                },
+            )()
+        ],
+    )
+    resp = client.get("/api/v1/credentials")
+    assert resp.status_code == 200
+    assert resp.json()["credentials"][0]["credential_id"] == "cred-1"
+    assert "secret" not in resp.json()["credentials"][0]
+
+
+def test_t_rest_credential_create_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CREDENTIAL-CREATE-200"""
+    monkeypatch.setattr(
+        "src.api.rest.credential_store.create_credential",
+        lambda name, provider, host, username, secret: type(
+            "Meta",
+            (),
+            {
+                "credential_id": "cred-1",
+                "name": name,
+                "provider": provider,
+                "host": host,
+                "username": username,
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "revoked_at": None,
+                "is_active": True,
+            },
+        )(),
+    )
+    resp = client.post(
+        "/api/v1/credentials",
+        json={
+            "name": "GitLab PAT",
+            "provider": "gitlab",
+            "host": "gitlab.com",
+            "username": "oauth2",
+            "secret": "token-value",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["credential_id"] == "cred-1"
+    assert "secret" not in resp.json()
+
+
+def test_t_rest_credential_revoke_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CREDENTIAL-REVOKE-200"""
+    monkeypatch.setattr(
+        "src.api.rest.credential_store.revoke_credential",
+        lambda credential_id: type(
+            "Meta",
+            (),
+            {
+                "credential_id": credential_id,
+                "name": "GitLab PAT",
+                "provider": "gitlab",
+                "host": "gitlab.com",
+                "username": "oauth2",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
+                "revoked_at": "2026-01-02T00:00:00Z",
+                "is_active": False,
+            },
+        )(),
+    )
+    resp = client.delete("/api/v1/credentials/cred-1")
+    assert resp.status_code == 200
+    assert resp.json()["is_active"] is False
+
+
+def test_t_rest_credential_update_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CREDENTIAL-UPDATE-200"""
+    monkeypatch.setattr(
+        "src.api.rest.credential_store.update_credential",
+        lambda credential_id, **kwargs: type(
+            "Meta",
+            (),
+            {
+                "credential_id": credential_id,
+                "name": kwargs["name"],
+                "provider": "gitlab",
+                "host": "gitlab.com",
+                "username": kwargs["username"],
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
+                "revoked_at": None,
+                "is_active": True,
+            },
+        )(),
+    )
+    resp = client.put(
+        "/api/v1/credentials/cred-1",
+        json={"name": "Updated PAT", "username": "oauth2"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Updated PAT"
 
 
 @pytest.mark.parametrize(

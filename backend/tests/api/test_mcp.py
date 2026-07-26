@@ -16,6 +16,10 @@ def test_t_mcp_tools_lists_registry(client) -> None:
         "workspace.read_file",
         "workspace.write_file",
         "workspace.exec",
+        "credentials.list",
+        "credentials.create",
+        "credentials.update",
+        "credentials.revoke",
     }
 
 
@@ -26,7 +30,7 @@ def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
-    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None: "ok")
+    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None, credential=None: "ok")
     resp = client.post("/api/v1/mcp/call", json={"tool": "git.clone", "args": {"url": "u"}})
     assert resp.status_code == 200
     assert resp.json() == {"tool": "git.clone", "ok": True, "result": {"output": "ok"}}
@@ -41,7 +45,7 @@ def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch
         lambda root_path, origin_url: None,
     )
 
-    def fake_clone(url: str, destination: str | None = None) -> str:
+    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
         captured["url"] = url
         captured["destination"] = destination
         return "ok"
@@ -56,6 +60,42 @@ def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch
     )
     assert resp.status_code == 200
     assert captured == {"url": "u", "destination": "repos/repo-manager-copy"}
+
+
+def test_t_mcp_git_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-GIT-CLONE-CREDENTIAL-ID-200"""
+    captured = {}
+    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
+
+    class DummyCredential:
+        credential_id = "cred-1"
+        provider = "gitlab"
+        host = "gitlab.com"
+        username = "oauth2"
+        secret = "token-value"
+
+    monkeypatch.setattr(
+        "src.api.mcp.credential_store.get_credential_for_use",
+        lambda credential_id, url: DummyCredential(),
+    )
+
+    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
+        captured["url"] = url
+        captured["destination"] = destination
+        captured["credential"] = credential
+        return "ok"
+
+    monkeypatch.setattr("src.api.mcp.clone_repo", fake_clone)
+    resp = client.post(
+        "/api/v1/mcp/call",
+        json={"tool": "git.clone", "args": {"url": "u", "credential_id": "cred-1"}},
+    )
+    assert resp.status_code == 200
+    assert captured["credential"].credential_id == "cred-1"
 
 
 def test_t_mcp_push_defaults(client, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,7 +130,7 @@ def test_t_mcp_missing_argument_400(client) -> None:
 def test_t_mcp_operation_error_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-OP-ERROR-400"""
 
-    def fail(url: str, destination: str | None = None) -> str:
+    def fail(url: str, destination: str | None = None, credential=None) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.mcp.clone_repo", fail)
@@ -103,7 +143,7 @@ def test_t_mcp_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatch
     """T-MCP-CLONE-INV-REGISTER"""
     captured = {}
 
-    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None: "ok")
+    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None, credential=None: "ok")
     monkeypatch.setattr(
         "src.api.mcp.resolve_clone_target",
         lambda url, destination=None: "/workspace/repo-manager-copy",
@@ -209,3 +249,96 @@ def test_t_mcp_workspace_exec_200(client, monkeypatch: pytest.MonkeyPatch) -> No
     resp = client.post("/api/v1/mcp/call", json={"tool": "workspace.exec", "args": {"cmd": "ls"}})
     assert resp.status_code == 200
     assert resp.json() == {"tool": "workspace.exec", "ok": True, "result": {"output": "done"}}
+
+
+def test_t_mcp_credentials_list_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-CREDENTIALS-LIST-200"""
+    monkeypatch.setattr(
+        "src.api.mcp.credential_store.list_credentials",
+        lambda: [
+            type(
+                "Meta",
+                (),
+                {
+                    "credential_id": "cred-1",
+                    "name": "GitLab PAT",
+                    "provider": "gitlab",
+                    "host": "gitlab.com",
+                    "username": "oauth2",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "revoked_at": None,
+                    "is_active": True,
+                },
+            )()
+        ],
+    )
+    resp = client.post("/api/v1/mcp/call", json={"tool": "credentials.list", "args": {}})
+    assert resp.status_code == 200
+    assert resp.json()["result"]["credentials"][0]["credential_id"] == "cred-1"
+    assert "secret" not in resp.json()["result"]["credentials"][0]
+
+
+def test_t_mcp_credentials_create_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-CREDENTIALS-CREATE-200"""
+    monkeypatch.setattr(
+        "src.api.mcp.credential_store.create_credential",
+        lambda name, provider, host, username, secret: type(
+            "Meta",
+            (),
+            {
+                "credential_id": "cred-1",
+                "name": name,
+                "provider": provider,
+                "host": host,
+                "username": username,
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "revoked_at": None,
+                "is_active": True,
+            },
+        )(),
+    )
+    resp = client.post(
+        "/api/v1/mcp/call",
+        json={
+            "tool": "credentials.create",
+            "args": {
+                "name": "GitLab PAT",
+                "provider": "gitlab",
+                "host": "gitlab.com",
+                "username": "oauth2",
+                "secret": "token-value",
+            },
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["result"]["credential_id"] == "cred-1"
+
+
+def test_t_mcp_credentials_revoke_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-CREDENTIALS-REVOKE-200"""
+    monkeypatch.setattr(
+        "src.api.mcp.credential_store.revoke_credential",
+        lambda credential_id: type(
+            "Meta",
+            (),
+            {
+                "credential_id": credential_id,
+                "name": "GitLab PAT",
+                "provider": "gitlab",
+                "host": "gitlab.com",
+                "username": "oauth2",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
+                "revoked_at": "2026-01-02T00:00:00Z",
+                "is_active": False,
+            },
+        )(),
+    )
+    resp = client.post(
+        "/api/v1/mcp/call",
+        json={"tool": "credentials.revoke", "args": {"credential_id": "cred-1"}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["result"]["is_active"] is False

@@ -102,11 +102,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function cloneRepository(url: string, destination?: string) {
+  async function cloneRepository(url: string, destination?: string, credentialId?: string) {
     loading.value = true
     error.value = null
     try {
-      await apiClient.cloneRepository(url, destination)
+      await apiClient.cloneRepository(url, destination, credentialId)
       await fetchInventory()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to clone repository'
@@ -116,11 +116,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function createWorkspace(repositoryId: string, branch: string, path: string) {
+  async function createWorkspace(repositoryId: string, branch: string, workspaceName?: string) {
     loading.value = true
     error.value = null
     try {
-      const workspace = await apiClient.createWorkspace(repositoryId, branch, path)
+      const workspace = await apiClient.createWorkspace(repositoryId, branch, workspaceName)
       workspaces.value.push(workspace)
       return workspace
     } catch (e) {
@@ -145,13 +145,34 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function selectWorkspace(workspaceId: string) {
+  async function renameRepository(repositoryId: string, name: string) {
     loading.value = true
     error.value = null
     try {
-      await apiClient.selectWorkspace(workspaceId)
+      const updated = await apiClient.renameRepository(repositoryId, name)
+      repositories.value = repositories.value.map((repo) =>
+        repo.repository_id === repositoryId ? updated : repo
+      )
+      return updated
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to select workspace'
+      error.value = e instanceof Error ? e.message : 'Failed to rename repository'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function renameWorkspace(workspaceId: string, workspaceName: string) {
+    loading.value = true
+    error.value = null
+    try {
+      const updated = await apiClient.renameWorkspace(workspaceId, workspaceName)
+      workspaces.value = workspaces.value.map((workspace) =>
+        workspace.workspace_id === workspaceId ? updated : workspace
+      )
+      return updated
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to rename workspace'
       throw e
     } finally {
       loading.value = false
@@ -176,9 +197,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     fetchInventory,
     rescanInventory,
     fetchRepository,
+    renameRepository,
     cloneRepository,
     createWorkspace,
-    removeWorkspace,
-    selectWorkspace
+    renameWorkspace,
+    removeWorkspace
   }
 })

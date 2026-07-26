@@ -11,10 +11,14 @@ from src.core import events
 from src.models.schemas import (
     ActivityItem,
     DashboardResponse,
-    InventoryRescanRequest,
     InventoryCounts,
+    InventoryRescanRequest,
     InventoryResponse,
     RepositoryInfo,
+    RepositoryRenameRequest,
+    WorkspaceCreateRequest,
+    WorkspaceInfo,
+    WorkspaceRenameRequest,
 )
 from src.services.workspace_inventory import InventoryError, inventory_service
 
@@ -121,5 +125,62 @@ def fetch_repository(repository_id: str) -> RepositoryInfo:
     except InventoryError as exc:
         detail = str(exc)
         if detail.startswith("Repository not found"):
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+
+@router.patch("/repositories/{repository_id}", response_model=RepositoryInfo)
+def rename_repository(
+    repository_id: str, request: RepositoryRenameRequest
+) -> RepositoryInfo:
+    """Rename a repository display name."""
+    try:
+        return inventory_service.rename_repository(repository_id, request.name)
+    except InventoryError as exc:
+        detail = str(exc)
+        if detail.startswith("Repository not found"):
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+
+@router.post("/workspaces", response_model=WorkspaceInfo)
+def create_workspace(request: WorkspaceCreateRequest) -> WorkspaceInfo:
+    """Create a new git worktree workspace for a repository."""
+    try:
+        return inventory_service.create_workspace(
+            repository_id=request.repository_id,
+            branch=request.branch,
+            workspace_name=request.workspace_name,
+        )
+    except InventoryError as exc:
+        detail = str(exc)
+        if detail.startswith("Repository not found"):
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+
+@router.delete("/workspaces/{workspace_id}")
+def remove_workspace(workspace_id: str) -> dict[str, bool]:
+    """Remove a git worktree workspace."""
+    try:
+        inventory_service.remove_workspace(workspace_id)
+        return {"ok": True}
+    except InventoryError as exc:
+        detail = str(exc)
+        if detail.startswith("Workspace not found"):
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+
+@router.patch("/workspaces/{workspace_id}", response_model=WorkspaceInfo)
+def rename_workspace(
+    workspace_id: str, request: WorkspaceRenameRequest
+) -> WorkspaceInfo:
+    """Rename a workspace display name."""
+    try:
+        return inventory_service.rename_workspace(workspace_id, request.workspace_name)
+    except InventoryError as exc:
+        detail = str(exc)
+        if detail.startswith("Workspace not found"):
             raise HTTPException(status_code=404, detail=detail) from exc
         raise HTTPException(status_code=400, detail=detail) from exc

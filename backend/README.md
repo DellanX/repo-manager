@@ -49,9 +49,28 @@ backend/
 All API endpoints use the `/api/v1/` prefix:
 
 - `/api/v1/clone`, `/api/v1/checkout`, etc. - Git operations
+- `/api/v1/credentials` - Secure credential metadata lifecycle
 - `/api/v1/mcp/*` - MCP tool interface
 - `/api/v1/ui/*` - UI data endpoints
 - `/api/v1/ws/*` - WebSocket feed
 - `/health` - Health check (no version prefix)
 
 See [../docs/specs/api/](../docs/specs/api/) for API specifications.
+
+## Credential Secret Backends
+
+Credential metadata is stored in SQLite, while secret values use a secure backend selected by env vars:
+
+- `REPO_MANAGER_SECRET_BACKEND=keyring` (default)
+- `REPO_MANAGER_SECRET_BACKEND=vault` for HashiCorp Vault KV v2
+
+Vault mode requires:
+
+- `REPO_MANAGER_VAULT_ADDR`
+- `REPO_MANAGER_VAULT_TOKEN`
+
+Optional:
+
+- `REPO_MANAGER_VAULT_MOUNT` (default `secret`)
+- `REPO_MANAGER_VAULT_PATH_PREFIX` (default `repo-manager/credentials`)
+- `REPO_MANAGER_VAULT_NAMESPACE`

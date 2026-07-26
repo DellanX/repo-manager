@@ -20,6 +20,7 @@ export interface RepositoryInfo {
 export interface WorkspaceInfo {
   workspace_id: string
   repository_id: string
+  workspace_name: string
   path: string
   branch: string
   head_sha: string
@@ -55,6 +56,28 @@ export interface InventoryResponse {
   workspaces: WorkspaceInfo[]
   source_mode: 'database' | 'filesystem'
   generated_at: string
+}
+
+export type CredentialProvider = 'github' | 'gitlab' | 'azure_devops' | 'generic'
+
+export interface CredentialInfo {
+  credential_id: string
+  name: string
+  provider: CredentialProvider
+  host: string
+  username: string
+  created_at: string
+  updated_at: string
+  revoked_at: string | null
+  is_active: boolean
+}
+
+export interface CredentialCreatePayload {
+  name: string
+  provider: CredentialProvider
+  host: string
+  username: string
+  secret: string
 }
 
 class ApiClient {
@@ -98,11 +121,21 @@ class ApiClient {
     })
   }
 
+  async renameRepository(repositoryId: string, name: string): Promise<RepositoryInfo> {
+    return this.request<RepositoryInfo>(`/ui/repositories/${repositoryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    })
+  }
+
   // Repositories
-  async cloneRepository(url: string, destination?: string): Promise<void> {
-    const payload: { url: string; destination?: string } = { url }
+  async cloneRepository(url: string, destination?: string, credentialId?: string): Promise<void> {
+    const payload: { url: string; destination?: string; credential_id?: string } = { url }
     if (destination) {
       payload.destination = destination
+    }
+    if (credentialId) {
+      payload.credential_id = credentialId
     }
 
     await this.request<{ output: string }>('/clone', {
@@ -111,15 +144,38 @@ class ApiClient {
     })
   }
 
+  // Credentials
+  async listCredentials(): Promise<CredentialInfo[]> {
+    const payload = await this.request<{ credentials: CredentialInfo[] }>('/credentials')
+    return payload.credentials
+  }
+
+  async createCredential(input: CredentialCreatePayload): Promise<CredentialInfo> {
+    return this.request<CredentialInfo>('/credentials', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    })
+  }
+
+  async revokeCredential(credentialId: string): Promise<CredentialInfo> {
+    return this.request<CredentialInfo>(`/credentials/${credentialId}`, {
+      method: 'DELETE'
+    })
+  }
+
   // Workspaces
   async createWorkspace(
     repositoryId: string,
     branch: string,
-    path: string
+    workspaceName?: string
   ): Promise<WorkspaceInfo> {
     return this.request<WorkspaceInfo>('/ui/workspaces', {
       method: 'POST',
-      body: JSON.stringify({ repository_id: repositoryId, branch, path })
+      body: JSON.stringify({
+        repository_id: repositoryId,
+        branch,
+        workspace_name: workspaceName
+      })
     })
   }
 
@@ -129,9 +185,10 @@ class ApiClient {
     })
   }
 
-  async selectWorkspace(workspaceId: string): Promise<void> {
-    await this.request(`/ui/workspaces/${workspaceId}/select`, {
-      method: 'POST'
+  async renameWorkspace(workspaceId: string, workspaceName: string): Promise<WorkspaceInfo> {
+    return this.request<WorkspaceInfo>(`/ui/workspaces/${workspaceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ workspace_name: workspaceName })
     })
   }
 }

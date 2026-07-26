@@ -26,6 +26,12 @@ const router = createRouter({
       component: () => import('@/views/WorkspacesView.vue')
     },
     {
+      path: '/workspaces/:workspaceId',
+      name: 'workspace-detail',
+      component: () => import('@/views/WorkspaceDetailView.vue'),
+      props: true
+    },
+    {
       path: '/config/credentials',
       name: 'credentials',
       component: () => import('@/views/CredentialsView.vue')

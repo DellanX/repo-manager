@@ -4,6 +4,8 @@ from src.models.schemas import (
     CheckoutRequest,
     CloneRequest,
     CommitRequest,
+    CredentialCreateRequest,
+    CredentialUpdateRequest,
     ExecRequest,
     MCPCallRequest,
     PushRequest,
@@ -74,3 +76,18 @@ def test_t_schema_all_models_accept_valid_data() -> None:
     assert WriteFileRequest(path="test.txt", content="data").path == "test.txt"
     assert ExecRequest(cmd="git status").cmd == "git status"
     assert PushRequest(remote="upstream", branch="feature").remote == "upstream"
+    clone_request = CloneRequest(
+        url="https://github.com/test/repo.git",
+        credential_id="cred-1",
+    )
+    assert clone_request.credential_id == "cred-1"
+    cred_create = CredentialCreateRequest(
+        name="GitLab PAT",
+        provider="gitlab",
+        host="gitlab.com",
+        username="oauth2",
+        secret="token-value",
+    )
+    assert cred_create.provider == "gitlab"
+    cred_update = CredentialUpdateRequest(name="Updated")
+    assert cred_update.name == "Updated"

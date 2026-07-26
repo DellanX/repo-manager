@@ -14,7 +14,9 @@ const store = useInventoryStore()
         <RouterLink to="/repos">
           <AppButton>Clone Repository</AppButton>
         </RouterLink>
-        <AppButton>Create Workspace</AppButton>
+        <RouterLink to="/workspaces">
+          <AppButton>Create Workspace</AppButton>
+        </RouterLink>
         <AppButton as="a" href="/config/credentials">Manage Credentials</AppButton>
         <AppButton as="a" href="/config/webhooks">Manage Webhooks</AppButton>
       </template>

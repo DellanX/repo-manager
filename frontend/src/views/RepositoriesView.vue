@@ -2,19 +2,25 @@
 import { computed, onMounted, ref } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { PageHeader, AppButton, DataTable, EmptyState } from '@/components/ui'
+import { apiClient, type CredentialInfo } from '@/api/client'
 
 const store = useInventoryStore()
 const cloneUrl = ref('')
 const cloneDestination = ref('')
+const cloneCredentialId = ref('')
 const cloneError = ref<string | null>(null)
 const cloneSuccess = ref<string | null>(null)
 const scanSuccess = ref<string | null>(null)
 const showCloneForm = ref(false)
+const credentials = ref<CredentialInfo[]>([])
 
 const isCloneDisabled = computed(() => store.loading || cloneUrl.value.trim().length === 0)
 
 onMounted(() => {
   store.fetchInventory()
+  loadCredentials().catch(() => {
+    cloneError.value = 'Unable to load credentials.'
+  })
 })
 
 const columns = ['Name', 'Repository ID', 'Root Path', 'Origin URL', 'Default Branch', 'Status', 'Last Seen', 'Actions']
@@ -25,6 +31,11 @@ function openCloneForm(originUrl?: string) {
   cloneSuccess.value = null
   cloneUrl.value = originUrl || ''
   cloneDestination.value = ''
+  cloneCredentialId.value = ''
+}
+
+async function loadCredentials() {
+  credentials.value = await apiClient.listCredentials()
 }
 
 async function submitClone() {
@@ -38,10 +49,15 @@ async function submitClone() {
   cloneSuccess.value = null
 
   try {
-    await store.cloneRepository(url, cloneDestination.value.trim() || undefined)
+    await store.cloneRepository(
+      url,
+      cloneDestination.value.trim() || undefined,
+      cloneCredentialId.value || undefined
+    )
     cloneSuccess.value = `Clone started for ${url}`
     cloneUrl.value = ''
     cloneDestination.value = ''
+    cloneCredentialId.value = ''
     showCloneForm.value = false
   } catch (error) {
     cloneError.value = error instanceof Error ? error.message : 'Failed to clone repository.'
@@ -88,6 +104,23 @@ async function rescanRepositories() {
           class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
           placeholder="https://github.com/org/repo.git"
         >
+      </div>
+      <div>
+        <label for="clone-credential" class="block text-sm font-medium mb-1">Credential (optional)</label>
+        <select
+          id="clone-credential"
+          v-model="cloneCredentialId"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+        >
+          <option value="">None</option>
+          <option
+            v-for="credential in credentials.filter((item) => item.is_active)"
+            :key="credential.credential_id"
+            :value="credential.credential_id"
+          >
+            {{ credential.name }} ({{ credential.provider }} @ {{ credential.host }})
+          </option>
+        </select>
       </div>
       <div>
         <label for="clone-destination" class="block text-sm font-medium mb-1">Destination (optional)</label>

@@ -2,9 +2,11 @@ import shlex
 import subprocess
 import os
 from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from src.core import events
 from src.core.config import WORKSPACE
+from src.services.credential_store import CredentialForUse
 
 
 class OperationError(Exception):
@@ -47,25 +49,68 @@ def resolve_clone_target(url: str, destination: str | None = None) -> str:
     return str(Path(WORKSPACE) / repo_name)
 
 
-def _run(cmd: list[str], cwd: str | None = None) -> str:
+def _redact_value(text: str, value: str) -> str:
+    if not value:
+        return text
+    return text.replace(value, "***REDACTED***")
+
+
+def _sanitize_output(output: str, redacted_values: list[str] | None = None) -> str:
+    cleaned = output
+    for value in redacted_values or []:
+        cleaned = _redact_value(cleaned, value)
+    return cleaned
+
+
+def _run(cmd: list[str], cwd: str | None = None, redacted_values: list[str] | None = None) -> str:
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise OperationError(result.stderr.strip() or "Command failed")
-    return result.stdout
+        stderr = _sanitize_output(result.stderr.strip(), redacted_values)
+        raise OperationError(stderr or "Command failed")
+    return _sanitize_output(result.stdout, redacted_values)
 
 
-def clone_repo(url: str, destination: str | None = None) -> str:
+def _build_authenticated_url(url: str, credential: CredentialForUse) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise OperationError("Credential-backed clone requires an HTTP(S) URL")
+    if parsed.hostname is None:
+        raise OperationError("Clone URL must include a host")
+    if parsed.username is not None or parsed.password is not None:
+        raise OperationError("Clone URL must not include embedded credentials")
+
+    host = parsed.hostname
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    username = quote(credential.username, safe="")
+    secret = quote(credential.secret, safe="")
+    netloc = f"{username}:{secret}@{host}"
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def clone_repo(
+    url: str,
+    destination: str | None = None,
+    credential: CredentialForUse | None = None,
+) -> str:
     resolved_destination = _resolve_clone_destination(destination)
     payload = {"url": url}
     if destination:
         payload["destination"] = destination
+    if credential is not None:
+        payload["credential_id"] = credential.credential_id
+    redacted_values: list[str] | None = None
 
     events.operation_events.record("service", "clone", "started", payload)
 
-    cmd = ["git", "clone", url]
+    clone_url = url
+    if credential is not None:
+        clone_url = _build_authenticated_url(url, credential)
+        redacted_values = [credential.secret, clone_url]
+    cmd = ["git", "clone", clone_url]
     if resolved_destination:
         cmd.append(resolved_destination)
-    output = _run(cmd, cwd=WORKSPACE)
+    output = _run(cmd, cwd=WORKSPACE, redacted_values=redacted_values)
 
     events.operation_events.record("service", "clone", "completed", payload)
     return output

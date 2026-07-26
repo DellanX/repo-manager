@@ -38,6 +38,37 @@ Required capability surface:
 
 MCP must expose equivalent credential lifecycle tools with least-privilege defaults.
 
+### Implemented Surface (Current)
+
+- `GET /api/v1/credentials` -> list credential metadata only (no secret values).
+- `POST /api/v1/credentials` -> create credential metadata + secure secret storage.
+- `PUT /api/v1/credentials/{credential_id}` -> update metadata and optional secret rotation.
+- `DELETE /api/v1/credentials/{credential_id}` -> revoke credential and remove secret.
+- `POST /api/v1/clone` accepts optional `credential_id` for HTTPS private-host clone auth.
+- MCP tools:
+  - `credentials.list`
+  - `credentials.create`
+  - `credentials.update`
+  - `credentials.revoke`
+  - `git.clone` with optional `credential_id`
+
+### Secret Backend Configuration
+
+Credential metadata is persisted in SQLite, while secret values are stored through a pluggable secure backend.
+
+- `REPO_MANAGER_SECRET_BACKEND=keyring` (default)
+  - Uses OS keyring/credential manager.
+  - If unavailable, operations fail with: `No secure keyring backend is available`.
+- `REPO_MANAGER_SECRET_BACKEND=vault`
+  - Uses HashiCorp Vault KV v2 API.
+  - Required env vars:
+    - `REPO_MANAGER_VAULT_ADDR` (for example `https://vault.example.com`)
+    - `REPO_MANAGER_VAULT_TOKEN`
+  - Optional env vars:
+    - `REPO_MANAGER_VAULT_MOUNT` (default: `secret`)
+    - `REPO_MANAGER_VAULT_PATH_PREFIX` (default: `repo-manager/credentials`)
+    - `REPO_MANAGER_VAULT_NAMESPACE` (for Vault Enterprise namespaces)
+
 ## Provider Requirements
 
 - GitHub: token validation and scope checks.
