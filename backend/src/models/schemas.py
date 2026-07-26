@@ -39,6 +39,10 @@ class MCPCallRequest(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
+class InventoryRescanRequest(BaseModel):
+    roots: list[str] = Field(default_factory=list)
+
+
 # Web UI Inventory Schemas (per docs/specs/ui/webui.md)
 
 InventoryStatus = Literal["ready", "missing_path",
@@ -60,6 +64,14 @@ class RepositoryInfo(BaseModel):
                                     description="Current repository status")
     last_seen_at: str = Field(...,
                               description="ISO8601 timestamp of last inventory check")
+    last_fetched_at: str | None = Field(
+        default=None,
+        description="ISO8601 timestamp of most recent fetch/pull metadata update",
+    )
+    last_commit_at: str | None = Field(
+        default=None,
+        description="ISO8601 timestamp of most recent commit in the repository",
+    )
 
 
 class WorkspaceInfo(BaseModel):

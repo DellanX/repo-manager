@@ -7,6 +7,7 @@ FastAPI backend service with Git operations, REST API, WebSocket watch feed, and
 - Python 3.11+
 - FastAPI
 - Pydantic for schemas
+- SQLite for inventory persistence
 - uvicorn for ASGI server
 
 ## Development

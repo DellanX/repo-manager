@@ -72,6 +72,36 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
+  async function rescanInventory(roots: string[]) {
+    loading.value = true
+    error.value = null
+    try {
+      const data: InventoryResponse = await apiClient.rescanInventory(roots)
+      repositories.value = data.repositories
+      workspaces.value = data.workspaces
+      generatedAt.value = data.generated_at
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to rescan inventory'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchRepository(repositoryId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await apiClient.fetchRepository(repositoryId)
+      await fetchInventory()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch repository'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function cloneRepository(url: string, destination?: string) {
     loading.value = true
     error.value = null
@@ -144,6 +174,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     // Actions
     fetchDashboard,
     fetchInventory,
+    rescanInventory,
+    fetchRepository,
     cloneRepository,
     createWorkspace,
     removeWorkspace,

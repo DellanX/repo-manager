@@ -34,6 +34,8 @@ def sample_repository() -> RepositoryInfo:
         default_branch="main",
         status="ready",
         last_seen_at="2026-07-22T12:00:00Z",
+        last_fetched_at="2026-07-22T10:00:00Z",
+        last_commit_at="2026-07-22T09:00:00Z",
     )
 
 
@@ -118,6 +120,8 @@ class TestDashboardEndpoint:
             default_branch="main",
             status="stale",
             last_seen_at="2026-07-22T12:00:00Z",
+            last_fetched_at=None,
+            last_commit_at=None,
         )
         mock_inventory = InventoryResponse(
             repositories=[stale_repo],

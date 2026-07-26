@@ -4,6 +4,7 @@ Test IDs map to spec requirements in docs/specs/ui/webui.md section 8.
 """
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -37,6 +38,8 @@ def sample_repository() -> RepositoryInfo:
         default_branch="main",
         status="ready",
         last_seen_at="2026-07-22T12:00:00Z",
+        last_fetched_at="2026-07-22T10:00:00Z",
+        last_commit_at="2026-07-22T09:00:00Z",
     )
 
 
@@ -177,6 +180,87 @@ class TestWorkspaceInventoryService:
         assert inventory.repositories[0].repository_id == "repo-1"
         assert inventory.workspaces[0].workspace_id == "ws-1"
 
+    def test_database_mode_persists_across_instances(self, tmp_path: Path) -> None:
+        """Database mode persists inventory records in SQLite."""
+        db_path = tmp_path / "inventory.sqlite3"
+        WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(db_path),
+        )
+        writer.add_repository(
+            repository_id="repo-persisted",
+            name="persisted-repo",
+            root_path=str(tmp_path / "persisted-repo"),
+            origin_url="https://github.com/test/persisted.git",
+            default_branch="main",
+        )
+
+        reader = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(db_path),
+        )
+        inventory = reader.get_inventory()
+        repo_ids = [repo.repository_id for repo in inventory.repositories]
+        assert "repo-persisted" in repo_ids
+
+    def test_database_mode_backfills_repo_timestamps_for_legacy_rows(
+        self, tmp_path: Path
+    ) -> None:
+        """Legacy DB rows with null timestamps are refreshed from local git metadata."""
+        db_path = tmp_path / "inventory.sqlite3"
+        repo_path = tmp_path / "legacy-repo"
+        repo_path.mkdir()
+        git_dir = repo_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+        refs_dir = git_dir / "refs" / "heads"
+        refs_dir.mkdir(parents=True)
+        (refs_dir / "main").write_text("1234567890abcdef1234567890abcdef12345678\n")
+        (git_dir / "logs").mkdir()
+        (git_dir / "logs" / "HEAD").write_text(
+            "0" * 40 + " " + "1" * 40 + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+        )
+        (git_dir / "FETCH_HEAD").write_text("fetch data")
+
+        WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(db_path),
+        )
+        with sqlite3.connect(db_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO repositories (
+                    repository_id, name, root_path, origin_url, default_branch, status, last_seen_at, last_fetched_at, last_commit_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "repo-legacy",
+                    "legacy-repo",
+                    str(repo_path.resolve()),
+                    "https://github.com/test/legacy.git",
+                    "main",
+                    "ready",
+                    "2026-07-22T12:00:00Z",
+                    None,
+                    None,
+                ),
+            )
+
+        reader = WorkspaceInventoryService(
+            source_mode="database",
+            workspace_roots=[str(tmp_path)],
+            inventory_db_path=str(db_path),
+        )
+        inventory = reader.get_inventory()
+        repo = next(
+            r for r in inventory.repositories if r.repository_id == "repo-legacy"
+        )
+        assert repo.last_fetched_at is not None
+        assert repo.last_commit_at is not None
+
     def test_stale_detection_missing_path(self, tmp_path: Path) -> None:
         """T-UI-INV-STALE: Missing path is marked as stale/missing_path."""
         service = WorkspaceInventoryService(
@@ -195,6 +279,25 @@ class TestWorkspaceInventoryService:
         inventory = service.get_inventory()
         assert inventory.repositories[0].status == "missing_path"
 
+    def test_register_cloned_repository_adds_entry(self, tmp_path: Path) -> None:
+        """T-UI-INV-CLONE-REGISTER: Cloned repository is registered in database mode."""
+        service = WorkspaceInventoryService(
+            source_mode="database", workspace_roots=[str(tmp_path)]
+        )
+
+        clone_path = tmp_path / "repo-manager-copy"
+        clone_path.mkdir()
+
+        repo = service.register_cloned_repository(
+            root_path=str(clone_path),
+            origin_url="https://github.com/test/repo-manager.git",
+        )
+        inventory = service.get_inventory()
+
+        assert repo.name == "repo-manager-copy"
+        assert len(inventory.repositories) == 1
+        assert inventory.repositories[0].root_path == str(clone_path.resolve())
+
     def test_filesystem_mode_discovery(self, tmp_path: Path) -> None:
         """T-UI-INV-FS-DISCOVER: Filesystem mode discovers git repositories."""
         # Create a fake git repo
@@ -206,6 +309,11 @@ class TestWorkspaceInventoryService:
         (git_dir / "config").write_text(
             "[remote \"origin\"]\n\turl = https://github.com/test/repo.git\n"
         )
+        (git_dir / "logs").mkdir()
+        (git_dir / "logs" / "HEAD").write_text(
+            "0" * 40 + " " + "1" * 40 + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
+        )
+        (git_dir / "FETCH_HEAD").write_text("fetch data")
 
         service = WorkspaceInventoryService(
             source_mode="filesystem", workspace_roots=[str(tmp_path)]
@@ -216,6 +324,54 @@ class TestWorkspaceInventoryService:
         found = [r for r in inventory.repositories if "my-repo" in r.name]
         assert len(found) == 1
         assert found[0].status == "ready"
+        assert found[0].last_fetched_at is not None
+        assert found[0].last_commit_at is not None
+
+    def test_database_mode_bootstraps_from_filesystem_when_empty(
+        self, tmp_path: Path
+    ) -> None:
+        """T-UI-INV-DB-BOOTSTRAP: Empty database mode can discover existing clones."""
+        repo_path = tmp_path / "existing-repo"
+        repo_path.mkdir()
+        git_dir = repo_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+        (git_dir / "config").write_text(
+            "[remote \"origin\"]\n\turl = https://github.com/test/existing-repo.git\n"
+        )
+
+        service = WorkspaceInventoryService(
+            source_mode="database", workspace_roots=[str(tmp_path)]
+        )
+        inventory = service.get_inventory()
+
+        assert len(inventory.repositories) == 1
+        assert inventory.repositories[0].name == "existing-repo"
+
+    def test_filesystem_mode_discovers_linked_worktree(self, tmp_path: Path) -> None:
+        """T-UI-INV-FS-WORKTREE-LINK: Filesystem mode handles .git file worktrees."""
+        worktree_path = tmp_path / "linked-worktree"
+        worktree_path.mkdir()
+        git_meta = tmp_path / ".git" / "worktrees" / "linked-worktree"
+        git_meta.mkdir(parents=True)
+        (worktree_path / ".git").write_text(f"gitdir: {git_meta}\n")
+        (git_meta / "HEAD").write_text("ref: refs/heads/feature/test\n")
+        refs_dir = git_meta / "refs" / "heads" / "feature"
+        refs_dir.mkdir(parents=True)
+        (refs_dir / "test").write_text("1234567890abcdef1234567890abcdef12345678\n")
+        (git_meta / "config").write_text(
+            "[remote \"origin\"]\n\turl = https://github.com/test/linked-worktree.git\n"
+        )
+
+        service = WorkspaceInventoryService(
+            source_mode="filesystem", workspace_roots=[str(tmp_path)]
+        )
+        inventory = service.get_inventory()
+
+        found = [r for r in inventory.repositories if r.name == "linked-worktree"]
+        assert len(found) == 1
+        assert found[0].status == "ready"
+        assert found[0].default_branch == "feature/test"
 
     def test_invalid_git_metadata_status(self, tmp_path: Path) -> None:
         """T-UI-INV-INVALID-GIT: Unreadable git metadata marked invalid_git_metadata."""
@@ -293,6 +449,8 @@ class TestInventoryEndpoint:
         assert "default_branch" in repo
         assert "status" in repo
         assert "last_seen_at" in repo
+        assert "last_fetched_at" in repo
+        assert "last_commit_at" in repo
 
         ws = data["workspaces"][0]
         assert "workspace_id" in ws
@@ -314,6 +472,81 @@ class TestInventoryEndpoint:
 
         assert resp.status_code == 500
         assert "unavailable" in resp.json()["detail"].lower()
+
+    def test_t_ui_inventory_rescan_200(
+        self,
+        client: TestClient,
+        sample_repository: RepositoryInfo,
+        sample_workspace: WorkspaceInfo,
+    ) -> None:
+        """T-UI-INV-RESCAN-200: POST /ui/inventory/rescan returns refreshed inventory."""
+        mock_inventory = InventoryResponse(
+            repositories=[sample_repository],
+            workspaces=[sample_workspace],
+            source_mode="database",
+            generated_at=datetime.now(UTC).isoformat(),
+        )
+
+        with patch("src.api.ui.inventory_service.rescan", return_value=mock_inventory):
+            resp = client.post(
+                "/api/v1/ui/inventory/rescan",
+                json={"roots": ["/workspace/repos", "/workspace/worktrees"]},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["repositories"]) == 1
+        assert len(data["workspaces"]) == 1
+
+    def test_t_ui_inventory_rescan_500_on_backend_error(self, client: TestClient) -> None:
+        """T-UI-INV-RESCAN-500: Returns 500 when rescan fails."""
+        with patch(
+            "src.api.ui.inventory_service.rescan",
+            side_effect=InventoryError("Rescan failed"),
+        ):
+            resp = client.post(
+                "/api/v1/ui/inventory/rescan",
+                json={"roots": ["/workspace/repos", "/workspace/worktrees"]},
+            )
+
+        assert resp.status_code == 500
+
+    def test_t_ui_inventory_fetch_repository_200(
+        self,
+        client: TestClient,
+        sample_repository: RepositoryInfo,
+    ) -> None:
+        """POST /ui/repositories/{repository_id}/fetch fetches and returns repository."""
+        with patch(
+            "src.api.ui.inventory_service.fetch_repository",
+            return_value=sample_repository,
+        ):
+            resp = client.post("/api/v1/ui/repositories/repo-123/fetch")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["repository_id"] == "repo-123"
+        assert data["last_fetched_at"] == "2026-07-22T10:00:00Z"
+
+    def test_t_ui_inventory_fetch_repository_404(self, client: TestClient) -> None:
+        """POST /ui/repositories/{repository_id}/fetch returns 404 when repo missing."""
+        with patch(
+            "src.api.ui.inventory_service.fetch_repository",
+            side_effect=InventoryError("Repository not found: repo-missing"),
+        ):
+            resp = client.post("/api/v1/ui/repositories/repo-missing/fetch")
+
+        assert resp.status_code == 404
+
+    def test_t_ui_inventory_fetch_repository_400(self, client: TestClient) -> None:
+        """POST /ui/repositories/{repository_id}/fetch returns 400 for fetch failures."""
+        with patch(
+            "src.api.ui.inventory_service.fetch_repository",
+            side_effect=InventoryError("Failed to fetch repository: remote failure"),
+        ):
+            resp = client.post("/api/v1/ui/repositories/repo-123/fetch")
+
+        assert resp.status_code == 400
 
     def test_t_ui_inventory_no_secrets(
         self,

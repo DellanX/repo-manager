@@ -11,8 +11,10 @@ from src.core import events
 from src.models.schemas import (
     ActivityItem,
     DashboardResponse,
+    InventoryRescanRequest,
     InventoryCounts,
     InventoryResponse,
+    RepositoryInfo,
 )
 from src.services.workspace_inventory import InventoryError, inventory_service
 
@@ -99,3 +101,25 @@ def get_inventory() -> InventoryResponse:
         return inventory_service.get_inventory()
     except InventoryError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/inventory/rescan", response_model=InventoryResponse)
+def rescan_inventory(request: InventoryRescanRequest) -> InventoryResponse:
+    """Rescan filesystem roots and return refreshed inventory."""
+    try:
+        roots = request.roots or None
+        return inventory_service.rescan(roots=roots)
+    except InventoryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/repositories/{repository_id}/fetch", response_model=RepositoryInfo)
+def fetch_repository(repository_id: str) -> RepositoryInfo:
+    """Fetch remote refs for a managed repository."""
+    try:
+        return inventory_service.fetch_repository(repository_id)
+    except InventoryError as exc:
+        detail = str(exc)
+        if detail.startswith("Repository not found"):
+            raise HTTPException(status_code=404, detail=detail) from exc
+        raise HTTPException(status_code=400, detail=detail) from exc

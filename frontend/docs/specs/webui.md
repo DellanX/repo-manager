@@ -45,7 +45,9 @@ Response:
       "origin_url": "https://github.com/org/repo-manager.git",
       "default_branch": "main",
       "status": "ready",
-      "last_seen_at": "2026-07-22T12:00:00Z"
+      "last_seen_at": "2026-07-22T12:00:00Z",
+      "last_fetched_at": "2026-07-22T11:45:00Z",
+      "last_commit_at": "2026-07-22T11:30:00Z"
     }
   ],
   "workspaces": [
@@ -75,13 +77,17 @@ The UI may call existing API/MCP-backed operations directly or through a UI adap
 
 Minimum actions:
 1. Clone repository
-   - `POST /clone` with `{ "url": ... }` -> delegates to clone capability.
+   - `POST /clone` with `{ "url": ..., "destination"?: ... }` -> delegates to clone capability.
 2. Create worktree workspace
    - `POST /ui/workspaces` -> delegates to worktree create capability.
 3. Remove worktree workspace
    - `DELETE /ui/workspaces/{workspace_id}` -> delegates to worktree remove capability.
 4. Select active workspace
    - `POST /ui/workspaces/{workspace_id}/select` -> delegates to worktree select capability.
+5. Rescan inventory roots
+   - `POST /ui/inventory/rescan` with `{ "roots": ["/workspace/repos", "/workspace/worktrees"] }`.
+6. Fetch repository remotes
+   - `POST /ui/repositories/{repository_id}/fetch` -> runs `git fetch --prune origin` for that repository and refreshes repository metadata timestamps.
 
 All mutation responses must return deterministic status and error payloads aligned with API standards.
 

@@ -21,6 +21,11 @@ def test_t_mcp_tools_lists_registry(client) -> None:
 
 def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-200"""
+    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
     monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None: "ok")
     resp = client.post("/api/v1/mcp/call", json={"tool": "git.clone", "args": {"url": "u"}})
     assert resp.status_code == 200
@@ -30,6 +35,11 @@ def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-DEST-200"""
     captured = {}
+    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
 
     def fake_clone(url: str, destination: str | None = None) -> str:
         captured["url"] = url
@@ -87,6 +97,27 @@ def test_t_mcp_operation_error_400(client, monkeypatch: pytest.MonkeyPatch) -> N
     resp = client.post("/api/v1/mcp/call", json={"tool": "git.clone", "args": {"url": "u"}})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "boom"
+
+
+def test_t_mcp_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-CLONE-INV-REGISTER"""
+    captured = {}
+
+    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None: "ok")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/workspace/repo-manager-copy",
+    )
+
+    def fake_register(root_path: str, origin_url: str) -> None:
+        captured["root_path"] = root_path
+        captured["origin_url"] = origin_url
+
+    monkeypatch.setattr("src.api.mcp.inventory_service.register_cloned_repository", fake_register)
+
+    resp = client.post("/api/v1/mcp/call", json={"tool": "git.clone", "args": {"url": "u"}})
+    assert resp.status_code == 200
+    assert captured == {"root_path": "/workspace/repo-manager-copy", "origin_url": "u"}
 
 
 def test_t_mcp_handler_casts_values_to_string(client, monkeypatch: pytest.MonkeyPatch) -> None:

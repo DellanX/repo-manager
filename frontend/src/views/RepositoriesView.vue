@@ -8,6 +8,7 @@ const cloneUrl = ref('')
 const cloneDestination = ref('')
 const cloneError = ref<string | null>(null)
 const cloneSuccess = ref<string | null>(null)
+const scanSuccess = ref<string | null>(null)
 const showCloneForm = ref(false)
 
 const isCloneDisabled = computed(() => store.loading || cloneUrl.value.trim().length === 0)
@@ -46,12 +47,28 @@ async function submitClone() {
     cloneError.value = error instanceof Error ? error.message : 'Failed to clone repository.'
   }
 }
+
+async function rescanRepositories() {
+  cloneError.value = null
+  cloneSuccess.value = null
+  scanSuccess.value = null
+
+  try {
+    await store.rescanInventory(['/workspace/repos', '/workspace/worktrees'])
+    scanSuccess.value = 'Inventory scan completed.'
+  } catch (error) {
+    cloneError.value = error instanceof Error ? error.message : 'Failed to rescan inventory.'
+  }
+}
 </script>
 
 <template>
   <div>
     <PageHeader title="Repositories">
       <template #actions>
+        <AppButton variant="secondary" :disabled="store.loading" @click="rescanRepositories()">
+          Scan Repos/Worktrees
+        </AppButton>
         <AppButton :disabled="store.loading" @click="openCloneForm()">Clone New</AppButton>
       </template>
     </PageHeader>
@@ -97,6 +114,7 @@ async function submitClone() {
     </form>
 
     <p v-if="cloneSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">{{ cloneSuccess }}</p>
+    <p v-if="scanSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">{{ scanSuccess }}</p>
 
     <DataTable :columns="columns">
       <EmptyState v-if="store.repositories.length === 0" :colspan="8" message="No repositories found.">

@@ -11,6 +11,11 @@ def test_t_rest_health_200(client) -> None:
 
 def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CLONE-200"""
+    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
     monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None: "cloned")
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 200
@@ -20,6 +25,11 @@ def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CLONE-DEST-200"""
     called = {}
+    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
 
     def fake_clone(url: str, destination: str | None = None) -> str:
         called["url"] = url
@@ -123,6 +133,30 @@ def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "boom"
+
+
+def test_t_rest_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CLONE-INV-REGISTER"""
+    captured = {}
+
+    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None: "cloned")
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/workspace/repo-manager-copy",
+    )
+
+    def fake_register(root_path: str, origin_url: str) -> None:
+        captured["root_path"] = root_path
+        captured["origin_url"] = origin_url
+
+    monkeypatch.setattr("src.api.rest.inventory_service.register_cloned_repository", fake_register)
+
+    resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
+    assert resp.status_code == 200
+    assert captured == {
+        "root_path": "/workspace/repo-manager-copy",
+        "origin_url": "https://example/repo.git",
+    }
 
 
 def test_t_rest_checkout_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:

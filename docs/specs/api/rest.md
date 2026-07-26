@@ -6,7 +6,7 @@ Source: `src/api/rest.py`
 
 | Method | Path | Request | Response | Errors |
 |--------|------|---------|----------|--------|
-| POST | /clone | `{ url }` | `{ output }` | 400 |
+| POST | /clone | `{ url, destination? }` | `{ output }` | 400 |
 | POST | /checkout | `{ branch }` | `{ output }` | 400 |
 | POST | /commit | `{ message }` | `{ output }` | 400 |
 | POST | /push | `{ remote?, branch? }` | `{ output }` | 400 |

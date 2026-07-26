@@ -6,6 +6,7 @@ tools:
     description: Clone a git repository
     args:
       url: {type: string, required: true}
+      destination: {type: string, required: false}
     returns: {output: string}
     errors: [400, 404]
 

@@ -9,7 +9,16 @@ from src.models.schemas import (
     WriteFileRequest,
 )
 from src.services.file_operations import read_file, write_file
-from src.services.git_operations import OperationError, checkout, clone_repo, commit, exec_cmd, push
+from src.services.git_operations import (
+    OperationError,
+    checkout,
+    clone_repo,
+    commit,
+    exec_cmd,
+    push,
+    resolve_clone_target,
+)
+from src.services.workspace_inventory import inventory_service
 
 router = APIRouter(tags=["rest"])
 
@@ -17,7 +26,13 @@ router = APIRouter(tags=["rest"])
 @router.post("/clone")
 def clone_repo_route(request: CloneRequest) -> dict[str, str]:
     try:
-        return {"output": clone_repo(request.url, request.destination)}
+        output = clone_repo(request.url, request.destination)
+        clone_target = resolve_clone_target(request.url, request.destination)
+        inventory_service.register_cloned_repository(
+            root_path=clone_target,
+            origin_url=request.url,
+        )
+        return {"output": output}
     except OperationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -1,6 +1,7 @@
 import shlex
 import subprocess
 import os
+from pathlib import Path
 
 from src.core import events
 from src.core.config import WORKSPACE
@@ -29,6 +30,21 @@ def _resolve_clone_destination(destination: str | None) -> str | None:
         raise OperationError("Destination escapes workspace")
 
     return candidate
+
+
+def resolve_clone_target(url: str, destination: str | None = None) -> str:
+    resolved_destination = _resolve_clone_destination(destination)
+    if resolved_destination:
+        return resolved_destination
+
+    stripped_url = url.rstrip("/")
+    repo_name = stripped_url.split("/")[-1].split(":")[-1]
+    if repo_name.endswith(".git"):
+        repo_name = repo_name[:-4]
+    if not repo_name:
+        raise OperationError("Unable to infer repository name from URL")
+
+    return str(Path(WORKSPACE) / repo_name)
 
 
 def _run(cmd: list[str], cwd: str | None = None) -> str:

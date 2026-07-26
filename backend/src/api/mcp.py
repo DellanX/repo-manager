@@ -5,7 +5,16 @@ from fastapi import APIRouter, HTTPException
 
 from src.models.schemas import MCPCallRequest
 from src.services.file_operations import read_file, write_file
-from src.services.git_operations import OperationError, checkout, clone_repo, commit, exec_cmd, push
+from src.services.git_operations import (
+    OperationError,
+    checkout,
+    clone_repo,
+    commit,
+    exec_cmd,
+    push,
+    resolve_clone_target,
+)
+from src.services.workspace_inventory import inventory_service
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -14,7 +23,15 @@ def _clone(args: dict[str, Any]) -> dict[str, str]:
     destination = args.get("destination")
     if destination is None and "path" in args:
         destination = args["path"]
-    return {"output": clone_repo(str(args["url"]), None if destination is None else str(destination))}
+    destination_value = None if destination is None else str(destination)
+    url = str(args["url"])
+    output = clone_repo(url, destination_value)
+    clone_target = resolve_clone_target(url, destination_value)
+    inventory_service.register_cloned_repository(
+        root_path=clone_target,
+        origin_url=url,
+    )
+    return {"output": output}
 
 
 def _checkout(args: dict[str, Any]) -> dict[str, str]:

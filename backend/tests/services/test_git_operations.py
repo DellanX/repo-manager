@@ -81,6 +81,23 @@ def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["cwd"] == git_operations.WORKSPACE
 
 
+def test_t_git_resolve_clone_target_from_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-TARGET-URL"""
+    monkeypatch.setattr(git_operations, "WORKSPACE", "/workspace")
+    target = git_operations.resolve_clone_target("https://github.com/org/repo-manager.git")
+    assert target == "/workspace/repo-manager"
+
+
+def test_t_git_resolve_clone_target_with_destination(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-TARGET-DEST"""
+    monkeypatch.setattr(git_operations, "WORKSPACE", "/workspace")
+    target = git_operations.resolve_clone_target(
+        "https://github.com/org/repo-manager.git",
+        "clones/repo-manager-copy",
+    )
+    assert target == "/workspace/clones/repo-manager-copy"
+
+
 @pytest.mark.parametrize(
     ("op", "args", "expected"),
     [

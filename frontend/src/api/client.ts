@@ -13,6 +13,8 @@ export interface RepositoryInfo {
   default_branch: string
   status: 'ready' | 'missing_path' | 'invalid_git_metadata' | 'stale'
   last_seen_at: string
+  last_fetched_at: string | null
+  last_commit_at: string | null
 }
 
 export interface WorkspaceInfo {
@@ -81,6 +83,19 @@ class ApiClient {
   // Inventory
   async getInventory(): Promise<InventoryResponse> {
     return this.request<InventoryResponse>('/ui/inventory')
+  }
+
+  async rescanInventory(roots: string[]): Promise<InventoryResponse> {
+    return this.request<InventoryResponse>('/ui/inventory/rescan', {
+      method: 'POST',
+      body: JSON.stringify({ roots })
+    })
+  }
+
+  async fetchRepository(repositoryId: string): Promise<RepositoryInfo> {
+    return this.request<RepositoryInfo>(`/ui/repositories/${repositoryId}/fetch`, {
+      method: 'POST'
+    })
   }
 
   // Repositories

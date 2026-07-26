@@ -6,7 +6,7 @@ Source: `src/services/git_operations.py`
 
 | Function | Command | Required Args |
 |----------|---------|---------------|
-| `clone_repo(url)` | `git clone <url> <workspace>` | url |
+| `clone_repo(url, destination?)` | `git clone <url> [destination]` (cwd=`workspace`) | url |
 | `checkout(branch)` | `git checkout <branch>` | branch |
 | `commit(message)` | `git add . && git commit -m` | message |
 | `push(remote, branch)` | `git push <remote> <branch>` | remote, branch |
