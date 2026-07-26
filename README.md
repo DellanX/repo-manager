@@ -2,6 +2,17 @@
 
 A Repo Management Microservice with a Vue.js frontend and FastAPI backend.
 
+## Container Images
+
+GitHub Actions publishes three production images to GHCR:
+
+- `ghcr.io/dellanx/repo-manager-backend` (Docker target: `fastapi`)
+- `ghcr.io/dellanx/repo-manager-frontend` (Docker target: `frontend`)
+- `ghcr.io/dellanx/repo-manager` (Docker target: `combo`, primary hybrid image)
+
+The hybrid image is the default image intended for the most common deployments.
+Images are published when a GitHub Release is published.
+
 ## Monorepo Structure
 
 ```
