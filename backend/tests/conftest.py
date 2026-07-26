@@ -15,7 +15,7 @@ def temp_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     # Patch workspace constants where they are imported by value.
     monkeypatch.setattr("src.core.config.WORKSPACE", str(workspace))
-    monkeypatch.setattr("src.services.file_operations.WORKSPACE", str(workspace))
+    monkeypatch.setattr("src.services.file_operations.WORKSPACE", str(workspace), raising=False)
     monkeypatch.setattr("src.services.git_operations.WORKSPACE", str(workspace))
     return workspace
 

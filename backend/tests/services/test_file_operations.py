@@ -7,27 +7,27 @@ from src.services.git_operations import OperationError
 
 def test_t_file_write_and_read_success(temp_workspace: Path) -> None:
     """T-FILE-WRITE-READ-200"""
-    result = write_file("nested/hello.txt", "hi")
+    result = write_file("nested/hello.txt", "hi", str(temp_workspace))
     assert result == {"status": "ok"}
-    assert read_file("nested/hello.txt") == "hi"
+    assert read_file("nested/hello.txt", str(temp_workspace)) == "hi"
 
 
 def test_t_file_read_missing_raises_operation_error(temp_workspace: Path) -> None:
     """T-FILE-READ-404"""
     with pytest.raises(OperationError, match="File not found"):
-        read_file("missing.txt")
+        read_file("missing.txt", str(temp_workspace))
 
 
 def test_t_file_read_traversal_rejected(temp_workspace: Path) -> None:
     """T-FILE-READ-TRAVERSAL-400"""
     with pytest.raises(OperationError, match="Path escapes workspace"):
-        _resolve_workspace_path("../outside.txt")
+        _resolve_workspace_path(str(temp_workspace), "../outside.txt")
 
 
 def test_t_file_write_traversal_rejected(temp_workspace: Path) -> None:
     """T-FILE-WRITE-TRAVERSAL-400"""
     with pytest.raises(OperationError, match="Path escapes workspace"):
-        write_file("../outside.txt", "x")
+        write_file("../outside.txt", "x", str(temp_workspace))
 
 
 def test_t_file_operations_emit_events(temp_workspace: Path) -> None:
@@ -36,8 +36,8 @@ def test_t_file_operations_emit_events(temp_workspace: Path) -> None:
 
     initial_count = len(events.operation_events.list_since(0))
 
-    write_file("events_test.txt", "content")
-    read_file("events_test.txt")
+    write_file("events_test.txt", "content", str(temp_workspace))
+    read_file("events_test.txt", str(temp_workspace))
 
     items = events.operation_events.list_since(0)
     new_events = items[initial_count:]

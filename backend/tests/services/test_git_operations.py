@@ -60,10 +60,10 @@ def test_t_git_commit_runs_add_then_commit(monkeypatch: pytest.MonkeyPatch) -> N
         return DummyCompleted(0, "ok", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    git_operations.commit("msg")
+    git_operations.commit("msg", "/workspace/repo")
 
-    assert calls[0] == ["git", "add", "."]
-    assert calls[1] == ["git", "commit", "-m", "msg"]
+    assert calls[0] == ["git", "-C", "/workspace/repo", "add", "."]
+    assert calls[1] == ["git", "-C", "/workspace/repo", "commit", "-m", "msg"]
 
 
 def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,9 +164,9 @@ def test_t_git_resolve_clone_target_with_destination(monkeypatch: pytest.MonkeyP
     ("op", "args", "expected"),
     [
         (git_operations.clone_repo, ("https://example/repo.git",), "clone"),
-        (git_operations.checkout, ("main",), "checkout"),
-        (git_operations.push, ("origin", "main"), "push"),
-        (git_operations.exec_cmd, ("git status",), "exec"),
+        (git_operations.checkout, ("main", "/workspace/repo"), "checkout"),
+        (git_operations.push, ("/workspace/repo", "origin", "main"), "push"),
+        (git_operations.exec_cmd, ("git status", "/workspace/repo"), "exec"),
     ],
 )
 def test_t_git_operations_emit_started_and_completed(

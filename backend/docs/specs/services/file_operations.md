@@ -6,12 +6,12 @@ Source: `src/services/file_operations.py`
 
 | Function | Behavior | Error |
 |----------|----------|-------|
-| `read_file(path)` | Returns UTF-8 content | `File not found` |
-| `write_file(path, content)` | Creates dirs, writes UTF-8 | `Path escapes workspace` |
+| `read_file(path, workspace_root)` | Returns UTF-8 content from workspace | `File not found` |
+| `write_file(path, content, workspace_root)` | Creates dirs, writes UTF-8 in workspace | `Path escapes workspace` |
 
 ## Path Resolution
 
-Paths joined with workspace root, normalized. Traversal outside root raises `OperationError`.
+Paths are joined with the provided workspace root, normalized, and checked. Traversal outside root raises `OperationError`.
 
 ## Invariants
 

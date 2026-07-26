@@ -2,6 +2,13 @@ import pytest
 from src.services.git_operations import OperationError
 
 
+def _mock_workspace_lookup(monkeypatch: pytest.MonkeyPatch, path: str = "/workspace/ws-1") -> None:
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.require_workspace",
+        lambda workspace_id: type("Workspace", (), {"workspace_id": workspace_id, "path": path})(),
+    )
+
+
 def test_t_rest_health_200(client) -> None:
     """T-REST-HEALTH-200"""
     resp = client.get("/health")
@@ -16,6 +23,7 @@ def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
+    monkeypatch.setattr("src.api.rest.inventory_service.find_workspace_by_path", lambda path: None)
     monkeypatch.setattr(
         "src.api.rest.clone_repo",
         lambda url, destination=None, credential=None, ssh_identity_file=None: "cloned",
@@ -33,6 +41,7 @@ def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPat
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
+    monkeypatch.setattr("src.api.rest.inventory_service.find_workspace_by_path", lambda path: None)
 
     def fake_clone(
         url: str,
@@ -76,6 +85,7 @@ def test_t_rest_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyP
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
+    monkeypatch.setattr("src.api.rest.inventory_service.find_workspace_by_path", lambda path: None)
 
     def fake_clone(
         url: str,
@@ -119,6 +129,7 @@ def test_t_rest_clone_with_ssh_identity_id_200(client, monkeypatch: pytest.Monke
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
+    monkeypatch.setattr("src.api.rest.inventory_service.find_workspace_by_path", lambda path: None)
 
     def fake_clone(
         url: str,
@@ -158,24 +169,30 @@ def test_t_rest_clone_rejects_dual_auth_400(client) -> None:
 
 def test_t_rest_checkout_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CHECKOUT-200"""
-    monkeypatch.setattr("src.api.rest.checkout", lambda branch: "ok")
-    resp = client.post("/api/v1/checkout", json={"branch": "main"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.checkout", lambda branch, workspace_root: "ok")
+    resp = client.post("/api/v1/checkout", json={"workspace_id": "ws-1", "branch": "main"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "ok"}
 
 
 def test_t_rest_commit_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-COMMIT-200"""
-    monkeypatch.setattr("src.api.rest.commit", lambda message: "ok")
-    resp = client.post("/api/v1/commit", json={"message": "m"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.commit", lambda message, workspace_root: "ok")
+    resp = client.post("/api/v1/commit", json={"workspace_id": "ws-1", "message": "m"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "ok"}
 
 
 def test_t_rest_push_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-PUSH-200"""
-    monkeypatch.setattr("src.api.rest.push", lambda remote, branch: "ok")
-    resp = client.post("/api/v1/push", json={"remote": "origin", "branch": "main"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.push", lambda workspace_root, remote, branch: "ok")
+    resp = client.post(
+        "/api/v1/push",
+        json={"workspace_id": "ws-1", "remote": "origin", "branch": "main"},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"output": "ok"}
 
@@ -183,38 +200,43 @@ def test_t_rest_push_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_rest_push_defaults(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-PUSH-DEFAULTS: Push uses origin/main when not specified."""
     called = {}
+    _mock_workspace_lookup(monkeypatch)
 
-    def fake_push(remote: str, branch: str) -> str:
+    def fake_push(workspace_root: str, remote: str, branch: str) -> str:
+        called["workspace_root"] = workspace_root
         called["remote"] = remote
         called["branch"] = branch
         return "ok"
 
     monkeypatch.setattr("src.api.rest.push", fake_push)
-    resp = client.post("/api/v1/push", json={})
+    resp = client.post("/api/v1/push", json={"workspace_id": "ws-1"})
     assert resp.status_code == 200
-    assert called == {"remote": "origin", "branch": "main"}
+    assert called == {"workspace_root": "/workspace/ws-1", "remote": "origin", "branch": "main"}
 
 
 def test_t_rest_file_get_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-GET-200"""
-    monkeypatch.setattr("src.api.rest.read_file", lambda path: "content")
-    resp = client.get("/api/v1/file", params={"path": "a.txt"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.read_file", lambda path, workspace_root: "content")
+    resp = client.get("/api/v1/file", params={"workspace_id": "ws-1", "path": "a.txt"})
     assert resp.status_code == 200
     assert resp.json() == {"content": "content"}
 
 
 def test_t_rest_file_post_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-POST-200"""
-    monkeypatch.setattr("src.api.rest.write_file", lambda path, content: {"status": "ok"})
-    resp = client.post("/api/v1/file", json={"path": "a.txt", "content": "x"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.write_file", lambda path, content, workspace_root: {"status": "ok"})
+    resp = client.post("/api/v1/file", json={"workspace_id": "ws-1", "path": "a.txt", "content": "x"})
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
 
 def test_t_rest_exec_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-EXEC-200"""
-    monkeypatch.setattr("src.api.rest.exec_cmd", lambda cmd: "done")
-    resp = client.post("/api/v1/exec", json={"cmd": "git status"})
+    _mock_workspace_lookup(monkeypatch)
+    monkeypatch.setattr("src.api.rest.exec_cmd", lambda cmd, workspace_root: "done")
+    resp = client.post("/api/v1/exec", json={"workspace_id": "ws-1", "cmd": "git status"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "done"}
 
@@ -222,11 +244,13 @@ def test_t_rest_exec_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_rest_file_get_missing_maps_404(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-MISSING-404"""
 
-    def fail(path: str) -> str:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(path: str, workspace_root: str) -> str:
         raise OperationError("File not found")
 
     monkeypatch.setattr("src.api.rest.read_file", fail)
-    resp = client.get("/api/v1/file", params={"path": "missing.txt"})
+    resp = client.get("/api/v1/file", params={"workspace_id": "ws-1", "path": "missing.txt"})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "File not found"
 
@@ -261,6 +285,7 @@ def test_t_rest_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatc
         captured["origin_url"] = origin_url
 
     monkeypatch.setattr("src.api.rest.inventory_service.register_cloned_repository", fake_register)
+    monkeypatch.setattr("src.api.rest.inventory_service.find_workspace_by_path", lambda path: None)
 
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 200
@@ -270,14 +295,42 @@ def test_t_rest_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatc
     }
 
 
+def test_t_rest_clone_returns_workspace_id_when_available(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """T-REST-CLONE-WORKSPACE-ID-200"""
+    monkeypatch.setattr(
+        "src.api.rest.clone_repo",
+        lambda url, destination=None, credential=None, ssh_identity_file=None: "cloned",
+    )
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/workspace/repo-manager-copy",
+    )
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.find_workspace_by_path",
+        lambda path: type("Workspace", (), {"workspace_id": "ws-1", "path": path})(),
+    )
+
+    resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
+    assert resp.status_code == 200
+    assert resp.json() == {"output": "cloned", "workspace_id": "ws-1"}
+
+
 def test_t_rest_checkout_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CHECKOUT-OP-ERROR-400"""
 
-    def fail(branch: str) -> str:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(branch: str, workspace_root: str) -> str:
         raise OperationError("checkout failed")
 
     monkeypatch.setattr("src.api.rest.checkout", fail)
-    resp = client.post("/api/v1/checkout", json={"branch": "feature"})
+    resp = client.post("/api/v1/checkout", json={"workspace_id": "ws-1", "branch": "feature"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "checkout failed"
 
@@ -285,11 +338,13 @@ def test_t_rest_checkout_error_maps_400(client, monkeypatch: pytest.MonkeyPatch)
 def test_t_rest_commit_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-COMMIT-OP-ERROR-400"""
 
-    def fail(message: str) -> str:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(message: str, workspace_root: str) -> str:
         raise OperationError("commit failed")
 
     monkeypatch.setattr("src.api.rest.commit", fail)
-    resp = client.post("/api/v1/commit", json={"message": "test"})
+    resp = client.post("/api/v1/commit", json={"workspace_id": "ws-1", "message": "test"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "commit failed"
 
@@ -297,11 +352,16 @@ def test_t_rest_commit_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -
 def test_t_rest_push_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-PUSH-OP-ERROR-400"""
 
-    def fail(remote: str, branch: str) -> str:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(workspace_root: str, remote: str, branch: str) -> str:
         raise OperationError("push failed")
 
     monkeypatch.setattr("src.api.rest.push", fail)
-    resp = client.post("/api/v1/push", json={"remote": "origin", "branch": "main"})
+    resp = client.post(
+        "/api/v1/push",
+        json={"workspace_id": "ws-1", "remote": "origin", "branch": "main"},
+    )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "push failed"
 
@@ -309,11 +369,16 @@ def test_t_rest_push_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> 
 def test_t_rest_file_post_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-WRITE-OP-ERROR-400"""
 
-    def fail(path: str, content: str) -> dict:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(path: str, content: str, workspace_root: str) -> dict:
         raise OperationError("write failed")
 
     monkeypatch.setattr("src.api.rest.write_file", fail)
-    resp = client.post("/api/v1/file", json={"path": "test.txt", "content": "data"})
+    resp = client.post(
+        "/api/v1/file",
+        json={"workspace_id": "ws-1", "path": "test.txt", "content": "data"},
+    )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "write failed"
 
@@ -321,11 +386,13 @@ def test_t_rest_file_post_error_maps_400(client, monkeypatch: pytest.MonkeyPatch
 def test_t_rest_exec_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-EXEC-OP-ERROR-400"""
 
-    def fail(cmd: str) -> str:
+    _mock_workspace_lookup(monkeypatch)
+
+    def fail(cmd: str, workspace_root: str) -> str:
         raise OperationError("exec failed")
 
     monkeypatch.setattr("src.api.rest.exec_cmd", fail)
-    resp = client.post("/api/v1/exec", json={"cmd": "git status"})
+    resp = client.post("/api/v1/exec", json={"workspace_id": "ws-1", "cmd": "git status"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "exec failed"
 

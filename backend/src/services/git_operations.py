@@ -131,34 +131,52 @@ def clone_repo(
     return output
 
 
-def checkout(branch: str) -> str:
-    events.operation_events.record("service", "checkout", "started", {"branch": branch})
-    output = _run(["git", "checkout", branch], cwd=WORKSPACE)
-    events.operation_events.record("service", "checkout", "completed", {"branch": branch})
-    return output
-
-
-def commit(message: str) -> str:
-    events.operation_events.record("service", "commit", "started", {"message": message})
-    _run(["git", "add", "."], cwd=WORKSPACE)
-    output = _run(["git", "commit", "-m", message], cwd=WORKSPACE)
-    events.operation_events.record("service", "commit", "completed", {"message": message})
-    return output
-
-
-def push(remote: str = "origin", branch: str = "main") -> str:
+def checkout(branch: str, workspace_root: str) -> str:
     events.operation_events.record(
-        "service", "push", "started", {"remote": remote, "branch": branch}
+        "service", "checkout", "started", {"branch": branch, "workspace_root": workspace_root}
     )
-    output = _run(["git", "push", remote, branch], cwd=WORKSPACE)
+    output = _run(["git", "-C", workspace_root, "checkout", branch])
     events.operation_events.record(
-        "service", "push", "completed", {"remote": remote, "branch": branch}
+        "service", "checkout", "completed", {"branch": branch, "workspace_root": workspace_root}
     )
     return output
 
 
-def exec_cmd(cmd: str) -> str:
-    events.operation_events.record("service", "exec", "started", {"cmd": cmd})
-    output = _run(shlex.split(cmd), cwd=WORKSPACE)
-    events.operation_events.record("service", "exec", "completed", {"cmd": cmd})
+def commit(message: str, workspace_root: str) -> str:
+    events.operation_events.record(
+        "service", "commit", "started", {"message": message, "workspace_root": workspace_root}
+    )
+    _run(["git", "-C", workspace_root, "add", "."])
+    output = _run(["git", "-C", workspace_root, "commit", "-m", message])
+    events.operation_events.record(
+        "service", "commit", "completed", {"message": message, "workspace_root": workspace_root}
+    )
+    return output
+
+
+def push(workspace_root: str, remote: str = "origin", branch: str = "main") -> str:
+    events.operation_events.record(
+        "service",
+        "push",
+        "started",
+        {"remote": remote, "branch": branch, "workspace_root": workspace_root},
+    )
+    output = _run(["git", "-C", workspace_root, "push", remote, branch])
+    events.operation_events.record(
+        "service",
+        "push",
+        "completed",
+        {"remote": remote, "branch": branch, "workspace_root": workspace_root},
+    )
+    return output
+
+
+def exec_cmd(cmd: str, workspace_root: str) -> str:
+    events.operation_events.record(
+        "service", "exec", "started", {"cmd": cmd, "workspace_root": workspace_root}
+    )
+    output = _run(shlex.split(cmd), cwd=workspace_root)
+    events.operation_events.record(
+        "service", "exec", "completed", {"cmd": cmd, "workspace_root": workspace_root}
+    )
     return output

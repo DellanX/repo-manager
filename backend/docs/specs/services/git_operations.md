@@ -7,10 +7,10 @@ Source: `src/services/git_operations.py`
 | Function | Command | Required Args |
 |----------|---------|---------------|
 | `clone_repo(url, destination?)` | `git clone <url> [destination]` (cwd=`workspace`) | url |
-| `checkout(branch)` | `git checkout <branch>` | branch |
-| `commit(message)` | `git add . && git commit -m` | message |
-| `push(remote, branch)` | `git push <remote> <branch>` | remote, branch |
-| `exec_cmd(cmd)` | `shlex.split` + subprocess | cmd |
+| `checkout(branch, workspace_root)` | `git -C <workspace_root> checkout <branch>` | branch, workspace_root |
+| `commit(message, workspace_root)` | `git -C <workspace_root> add .` + `git -C <workspace_root> commit -m` | message, workspace_root |
+| `push(workspace_root, remote, branch)` | `git -C <workspace_root> push <remote> <branch>` | workspace_root, remote, branch |
+| `exec_cmd(cmd, workspace_root)` | `shlex.split` + subprocess (cwd=`workspace_root`) | cmd, workspace_root |
 
 ## Error Contract
 
@@ -19,7 +19,7 @@ Non-zero exit raises `OperationError` with stderr (fallback: "Command failed").
 ## Invariants
 
 - All operations emit `started`/`completed` events.
-- Subprocess runs with workspace as cwd.
+- `clone_repo` runs in global workspace root; all other operations run in the provided workspace root.
 - No `shell=True`.
 - `exec_cmd` subject to [security_baseline.md](../security/security_baseline.md) policy.
 

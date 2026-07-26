@@ -30,7 +30,7 @@ from src.services.git_operations import (
     resolve_clone_target,
 )
 from src.services.ssh_identity_store import SSHIdentityStoreError, ssh_identity_store
-from src.services.workspace_inventory import inventory_service
+from src.services.workspace_inventory import InventoryError, inventory_service
 
 router = APIRouter(tags=["rest"])
 
@@ -58,7 +58,11 @@ def clone_repo_route(request: CloneRequest) -> dict[str, str]:
             root_path=clone_target,
             origin_url=request.url,
         )
-        return {"output": output}
+        workspace = inventory_service.find_workspace_by_path(clone_target)
+        response = {"output": output}
+        if workspace is not None:
+            response["workspace_id"] = workspace.workspace_id
+        return response
     except (OperationError, CredentialStoreError, SSHIdentityStoreError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -66,32 +70,36 @@ def clone_repo_route(request: CloneRequest) -> dict[str, str]:
 @router.post("/checkout")
 def checkout_route(request: CheckoutRequest) -> dict[str, str]:
     try:
-        return {"output": checkout(request.branch)}
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(request.workspace_id)
+        return {"output": checkout(request.branch, workspace.path)}
+    except (OperationError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/commit")
 def commit_route(request: CommitRequest) -> dict[str, str]:
     try:
-        return {"output": commit(request.message)}
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(request.workspace_id)
+        return {"output": commit(request.message, workspace.path)}
+    except (OperationError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/push")
 def push_route(request: PushRequest) -> dict[str, str]:
     try:
-        return {"output": push(request.remote, request.branch)}
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(request.workspace_id)
+        return {"output": push(workspace.path, request.remote, request.branch)}
+    except (OperationError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/file")
-def read_file_route(path: str) -> dict[str, str]:
+def read_file_route(workspace_id: str, path: str) -> dict[str, str]:
     try:
-        return {"content": read_file(path)}
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(workspace_id)
+        return {"content": read_file(path, workspace.path)}
+    except (OperationError, InventoryError) as exc:
         code = 404 if str(exc) == "File not found" else 400
         raise HTTPException(status_code=code, detail=str(exc)) from exc
 
@@ -99,16 +107,18 @@ def read_file_route(path: str) -> dict[str, str]:
 @router.post("/file")
 def write_file_route(request: WriteFileRequest) -> dict[str, str]:
     try:
-        return write_file(request.path, request.content)
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(request.workspace_id)
+        return write_file(request.path, request.content, workspace.path)
+    except (OperationError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/exec")
 def exec_cmd_route(request: ExecRequest) -> dict[str, str]:
     try:
-        return {"output": exec_cmd(request.cmd)}
-    except OperationError as exc:
+        workspace = inventory_service.require_workspace(request.workspace_id)
+        return {"output": exec_cmd(request.cmd, workspace.path)}
+    except (OperationError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

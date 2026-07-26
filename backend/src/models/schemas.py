@@ -11,28 +11,34 @@ class CloneRequest(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
+    workspace_id: str
     branch: str
 
 
 class CommitRequest(BaseModel):
+    workspace_id: str
     message: str
 
 
 class PushRequest(BaseModel):
+    workspace_id: str
     remote: str = "origin"
     branch: str = "main"
 
 
 class ReadFileRequest(BaseModel):
+    workspace_id: str
     path: str
 
 
 class WriteFileRequest(BaseModel):
+    workspace_id: str
     path: str
     content: str
 
 
 class ExecRequest(BaseModel):
+    workspace_id: str
     cmd: str
 
 

@@ -19,7 +19,7 @@ from src.services.git_operations import (
     push,
     resolve_clone_target,
 )
-from src.services.workspace_inventory import inventory_service
+from src.services.workspace_inventory import InventoryError, inventory_service
 from src.services.ssh_identity_store import SSHIdentityStoreError, ssh_identity_store
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
@@ -60,33 +60,43 @@ def _clone(args: dict[str, Any]) -> dict[str, str]:
         root_path=clone_target,
         origin_url=url,
     )
-    return {"output": output}
+    workspace = inventory_service.find_workspace_by_path(clone_target)
+    result = {"output": output}
+    if workspace is not None:
+        result["workspace_id"] = workspace.workspace_id
+    return result
 
 
 def _checkout(args: dict[str, Any]) -> dict[str, str]:
-    return {"output": checkout(str(args["branch"]))}
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
+    return {"output": checkout(str(args["branch"]), workspace.path)}
 
 
 def _commit(args: dict[str, Any]) -> dict[str, str]:
-    return {"output": commit(str(args["message"]))}
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
+    return {"output": commit(str(args["message"]), workspace.path)}
 
 
 def _push(args: dict[str, Any]) -> dict[str, str]:
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
     remote = str(args.get("remote", "origin"))
     branch = str(args.get("branch", "main"))
-    return {"output": push(remote, branch)}
+    return {"output": push(workspace.path, remote, branch)}
 
 
 def _read_file(args: dict[str, Any]) -> dict[str, str]:
-    return {"content": read_file(str(args["path"]))}
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
+    return {"content": read_file(str(args["path"]), workspace.path)}
 
 
 def _write_file(args: dict[str, Any]) -> dict[str, str]:
-    return write_file(str(args["path"]), str(args.get("content", "")))
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
+    return write_file(str(args["path"]), str(args.get("content", "")), workspace.path)
 
 
 def _exec(args: dict[str, Any]) -> dict[str, str]:
-    return {"output": exec_cmd(str(args["cmd"]))}
+    workspace = inventory_service.require_workspace(str(args["workspace_id"]))
+    return {"output": exec_cmd(str(args["cmd"]), workspace.path)}
 
 
 def _credential_list(args: dict[str, Any]) -> dict[str, list[dict[str, str | bool | None]]]:
@@ -207,5 +217,5 @@ def call_tool(request: MCPCallRequest) -> dict[str, Any]:
         return {"tool": request.tool, "ok": True, "result": result}
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"Missing argument: {exc.args[0]}") from exc
-    except (OperationError, CredentialStoreError, SSHIdentityStoreError) as exc:
+    except (OperationError, CredentialStoreError, SSHIdentityStoreError, InventoryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -117,13 +117,23 @@ class WorkspaceInventoryService:
                 origin_url = parsed_origin
             default_branch = parsed_branch
 
-        return self.add_repository(
+        repository = self.add_repository(
             repository_id=repository_id,
             name=name,
             root_path=normalized_path,
             origin_url=origin_url,
             default_branch=default_branch,
         )
+        self.add_workspace(
+            workspace_id=self._generate_id(normalized_path),
+            repository_id=repository.repository_id,
+            workspace_name=repository.name,
+            path=normalized_path,
+            branch=default_branch,
+            head_sha=self._parse_head_sha(git_dir) if git_dir is not None else "",
+            is_dirty=False,
+        )
+        return repository
 
     def add_workspace(
         self,
@@ -583,6 +593,24 @@ class WorkspaceInventoryService:
             {"workspace_id": workspace_id},
         )
         return updated
+
+    def require_workspace(self, workspace_id: str) -> WorkspaceInfo:
+        workspace = self._get_workspace_by_id(workspace_id)
+        if workspace is None:
+            raise InventoryError(f"Workspace not found: {workspace_id}")
+        workspace_path = Path(workspace.path)
+        if not workspace_path.exists():
+            raise InventoryError(f"Workspace path missing: {workspace.path}")
+        if not self._is_valid_git_repo(workspace_path):
+            raise InventoryError(f"Invalid git metadata for workspace: {workspace_id}")
+        return workspace
+
+    def find_workspace_by_path(self, path: str) -> WorkspaceInfo | None:
+        normalized = os.path.normpath(os.path.abspath(path))
+        for workspace in self._list_workspaces_from_db() if self.source_mode == "database" else self._workspaces.values():
+            if os.path.normpath(os.path.abspath(workspace.path)) == normalized:
+                return workspace
+        return None
 
     def rescan(self, roots: list[str] | None = None) -> InventoryResponse:
         """Rescan filesystem roots and refresh inventory entries."""

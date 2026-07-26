@@ -13,6 +13,9 @@ Source: `src/api/mcp.py`
 
 See [agents/tools.yaml](../agents/tools.yaml) for complete tool definitions including args, returns, and constraints.
 
+Workspace-scoped runtime tools (`git.checkout`, `git.commit`, `git.push`, `workspace.read_file`, `workspace.write_file`, `workspace.exec`) require `workspace_id` in `args`.
+`git.clone` may include `workspace_id` in its result when inventory registration resolves the new initial workspace.
+
 ## Error Codes
 
 | Code | Cause |

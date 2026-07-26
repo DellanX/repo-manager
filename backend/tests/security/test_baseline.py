@@ -6,7 +6,7 @@ from src.services.git_operations import OperationError
 def test_t_security_workspace_isolation_traversal_rejected(temp_workspace) -> None:
     """T-SEC-TRAVERSAL-REJECT"""
     with pytest.raises(OperationError):
-        _resolve_workspace_path("../../etc/passwd")
+        _resolve_workspace_path(str(temp_workspace), "../../etc/passwd")
 
 
 @pytest.mark.xfail(reason="Command policy enforcement is not implemented yet")

@@ -7,11 +7,11 @@ Source: `src/models/schemas.py`
 | Model | Fields | Defaults |
 |-------|--------|----------|
 | CloneRequest | url | — |
-| CheckoutRequest | branch | — |
-| CommitRequest | message | — |
-| PushRequest | remote, branch | origin, main |
-| WriteFileRequest | path, content | — |
-| ExecRequest | cmd | — |
+| CheckoutRequest | workspace_id, branch | — |
+| CommitRequest | workspace_id, message | — |
+| PushRequest | workspace_id, remote, branch | origin, main |
+| WriteFileRequest | workspace_id, path, content | — |
+| ExecRequest | workspace_id, cmd | — |
 | MCPCallRequest | tool, args | args={} |
 
 For full tool contracts see [agents/tools.yaml](../agents/tools.yaml).
