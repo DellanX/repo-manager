@@ -24,7 +24,9 @@ onMounted(() => {
   <div v-if="repository">
     <PageHeader :title="repository.name">
       <template #actions>
-        <AppButton>Clone New</AppButton>
+        <RouterLink to="/repos">
+          <AppButton>Clone New</AppButton>
+        </RouterLink>
         <AppButton>Create Workspace</AppButton>
         <RouterLink to="/config/credentials">
           <AppButton>Manage Credentials</AppButton>

@@ -1,28 +1,108 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { PageHeader, AppButton, DataTable, EmptyState } from '@/components/ui'
 
 const store = useInventoryStore()
+const cloneUrl = ref('')
+const cloneDestination = ref('')
+const cloneError = ref<string | null>(null)
+const cloneSuccess = ref<string | null>(null)
+const showCloneForm = ref(false)
+
+const isCloneDisabled = computed(() => store.loading || cloneUrl.value.trim().length === 0)
 
 onMounted(() => {
   store.fetchInventory()
 })
 
 const columns = ['Name', 'Repository ID', 'Root Path', 'Origin URL', 'Default Branch', 'Status', 'Last Seen', 'Actions']
+
+function openCloneForm(originUrl?: string) {
+  showCloneForm.value = true
+  cloneError.value = null
+  cloneSuccess.value = null
+  cloneUrl.value = originUrl || ''
+  cloneDestination.value = ''
+}
+
+async function submitClone() {
+  const url = cloneUrl.value.trim()
+  if (!url) {
+    cloneError.value = 'Repository URL is required.'
+    return
+  }
+
+  cloneError.value = null
+  cloneSuccess.value = null
+
+  try {
+    await store.cloneRepository(url, cloneDestination.value.trim() || undefined)
+    cloneSuccess.value = `Clone started for ${url}`
+    cloneUrl.value = ''
+    cloneDestination.value = ''
+    showCloneForm.value = false
+  } catch (error) {
+    cloneError.value = error instanceof Error ? error.message : 'Failed to clone repository.'
+  }
+}
 </script>
 
 <template>
   <div>
     <PageHeader title="Repositories">
       <template #actions>
-        <AppButton>Clone New</AppButton>
+        <AppButton :disabled="store.loading" @click="openCloneForm()">Clone New</AppButton>
       </template>
     </PageHeader>
 
+    <form
+      v-if="showCloneForm"
+      class="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-6 space-y-4"
+      @submit.prevent="submitClone"
+    >
+      <h2 class="text-lg font-medium">Clone Repository</h2>
+      <div>
+        <label for="clone-url" class="block text-sm font-medium mb-1">Repository URL</label>
+        <input
+          id="clone-url"
+          v-model="cloneUrl"
+          type="text"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          placeholder="https://github.com/org/repo.git"
+        >
+      </div>
+      <div>
+        <label for="clone-destination" class="block text-sm font-medium mb-1">Destination (optional)</label>
+        <input
+          id="clone-destination"
+          v-model="cloneDestination"
+          type="text"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          placeholder="repos/my-repo-copy"
+        >
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <AppButton type="submit" :disabled="isCloneDisabled">Clone</AppButton>
+        <AppButton
+          type="button"
+          variant="secondary"
+          :disabled="store.loading"
+          @click="showCloneForm = false"
+        >
+          Cancel
+        </AppButton>
+      </div>
+      <p v-if="cloneError" class="text-sm text-red-600 dark:text-red-400">{{ cloneError }}</p>
+    </form>
+
+    <p v-if="cloneSuccess" class="mb-4 text-sm text-green-600 dark:text-green-400">{{ cloneSuccess }}</p>
+
     <DataTable :columns="columns">
       <EmptyState v-if="store.repositories.length === 0" :colspan="8" message="No repositories found.">
-        <AppButton class="ml-2">Clone your first repository</AppButton>
+        <AppButton class="ml-2" :disabled="store.loading" @click="openCloneForm()">
+          Clone your first repository
+        </AppButton>
       </EmptyState>
       <tr
         v-for="repo in store.repositories"
@@ -47,7 +127,13 @@ const columns = ['Name', 'Repository ID', 'Root Path', 'Origin URL', 'Default Br
           <RouterLink :to="`/repos/${repo.repository_id}`">
             <AppButton size="sm">View</AppButton>
           </RouterLink>
-          <AppButton size="sm">Clone New</AppButton>
+          <AppButton
+            size="sm"
+            :disabled="store.loading"
+            @click="openCloneForm(repo.origin_url)"
+          >
+            Clone New
+          </AppButton>
         </td>
       </tr>
     </DataTable>

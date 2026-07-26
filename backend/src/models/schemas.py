@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class CloneRequest(BaseModel):
     url: str
+    destination: str | None = None
 
 
 class CheckoutRequest(BaseModel):

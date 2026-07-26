@@ -11,7 +11,10 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
 def _clone(args: dict[str, Any]) -> dict[str, str]:
-    return {"output": clone_repo(str(args["url"]))}
+    destination = args.get("destination")
+    if destination is None and "path" in args:
+        destination = args["path"]
+    return {"output": clone_repo(str(args["url"]), None if destination is None else str(destination))}
 
 
 def _checkout(args: dict[str, Any]) -> dict[str, str]:

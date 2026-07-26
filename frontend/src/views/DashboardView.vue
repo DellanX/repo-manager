@@ -11,7 +11,9 @@ const store = useInventoryStore()
   <div>
     <PageHeader title="Dashboard">
       <template #actions>
-        <AppButton>Clone Repository</AppButton>
+        <RouterLink to="/repos">
+          <AppButton>Clone Repository</AppButton>
+        </RouterLink>
         <AppButton>Create Workspace</AppButton>
         <AppButton as="a" href="/config/credentials">Manage Credentials</AppButton>
         <AppButton as="a" href="/config/webhooks">Manage Webhooks</AppButton>

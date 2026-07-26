@@ -84,10 +84,15 @@ class ApiClient {
   }
 
   // Repositories
-  async cloneRepository(url: string, path: string, defaultBranch?: string): Promise<void> {
-    await this.request('/ui/repos/clone', {
+  async cloneRepository(url: string, destination?: string): Promise<void> {
+    const payload: { url: string; destination?: string } = { url }
+    if (destination) {
+      payload.destination = destination
+    }
+
+    await this.request<{ output: string }>('/clone', {
       method: 'POST',
-      body: JSON.stringify({ url, path, default_branch: defaultBranch })
+      body: JSON.stringify(payload)
     })
   }
 

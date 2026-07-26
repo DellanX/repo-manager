@@ -21,10 +21,31 @@ def test_t_mcp_tools_lists_registry(client) -> None:
 
 def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-200"""
-    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url: "ok")
+    monkeypatch.setattr("src.api.mcp.clone_repo", lambda url, destination=None: "ok")
     resp = client.post("/api/v1/mcp/call", json={"tool": "git.clone", "args": {"url": "u"}})
     assert resp.status_code == 200
     assert resp.json() == {"tool": "git.clone", "ok": True, "result": {"output": "ok"}}
+
+
+def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-MCP-GIT-CLONE-DEST-200"""
+    captured = {}
+
+    def fake_clone(url: str, destination: str | None = None) -> str:
+        captured["url"] = url
+        captured["destination"] = destination
+        return "ok"
+
+    monkeypatch.setattr("src.api.mcp.clone_repo", fake_clone)
+    resp = client.post(
+        "/api/v1/mcp/call",
+        json={
+            "tool": "git.clone",
+            "args": {"url": "u", "destination": "repos/repo-manager-copy"},
+        },
+    )
+    assert resp.status_code == 200
+    assert captured == {"url": "u", "destination": "repos/repo-manager-copy"}
 
 
 def test_t_mcp_push_defaults(client, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,7 +80,7 @@ def test_t_mcp_missing_argument_400(client) -> None:
 def test_t_mcp_operation_error_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-OP-ERROR-400"""
 
-    def fail(url: str) -> str:
+    def fail(url: str, destination: str | None = None) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.mcp.clone_repo", fail)

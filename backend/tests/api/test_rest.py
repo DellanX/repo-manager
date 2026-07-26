@@ -11,10 +11,31 @@ def test_t_rest_health_200(client) -> None:
 
 def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CLONE-200"""
-    monkeypatch.setattr("src.api.rest.clone_repo", lambda url: "cloned")
+    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None: "cloned")
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "cloned"}
+
+
+def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CLONE-DEST-200"""
+    called = {}
+
+    def fake_clone(url: str, destination: str | None = None) -> str:
+        called["url"] = url
+        called["destination"] = destination
+        return "cloned"
+
+    monkeypatch.setattr("src.api.rest.clone_repo", fake_clone)
+    resp = client.post(
+        "/api/v1/clone",
+        json={"url": "https://example/repo.git", "destination": "repos/repo-manager-copy"},
+    )
+    assert resp.status_code == 200
+    assert called == {
+        "url": "https://example/repo.git",
+        "destination": "repos/repo-manager-copy",
+    }
 
 
 def test_t_rest_checkout_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,7 +116,7 @@ def test_t_rest_file_get_missing_maps_404(client, monkeypatch: pytest.MonkeyPatc
 def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-OP-ERROR-400"""
 
-    def fail(url: str) -> str:
+    def fail(url: str, destination: str | None = None) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.rest.clone_repo", fail)

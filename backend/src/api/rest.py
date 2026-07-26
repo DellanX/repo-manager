@@ -17,7 +17,7 @@ router = APIRouter(tags=["rest"])
 @router.post("/clone")
 def clone_repo_route(request: CloneRequest) -> dict[str, str]:
     try:
-        return {"output": clone_repo(request.url)}
+        return {"output": clone_repo(request.url, request.destination)}
     except OperationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

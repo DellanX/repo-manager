@@ -65,6 +65,22 @@ def test_t_git_commit_runs_add_then_commit(monkeypatch: pytest.MonkeyPatch) -> N
     assert calls[1] == ["git", "commit", "-m", "msg"]
 
 
+def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-IN-WORKSPACE"""
+    captured = {}
+
+    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        return DummyCompleted(0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    git_operations.clone_repo("https://example/repo.git")
+
+    assert captured["cmd"] == ["git", "clone", "https://example/repo.git"]
+    assert captured["cwd"] == git_operations.WORKSPACE
+
+
 @pytest.mark.parametrize(
     ("op", "args", "expected"),
     [

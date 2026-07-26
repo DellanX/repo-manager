@@ -75,7 +75,7 @@ The UI may call existing API/MCP-backed operations directly or through a UI adap
 
 Minimum actions:
 1. Clone repository
-   - `POST /ui/repos/clone` -> delegates to clone capability.
+   - `POST /clone` with `{ "url": ... }` -> delegates to clone capability.
 2. Create worktree workspace
    - `POST /ui/workspaces` -> delegates to worktree create capability.
 3. Remove worktree workspace
