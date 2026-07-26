@@ -6,12 +6,19 @@ from src.models.schemas import (
     CommitRequest,
     CredentialCreateRequest,
     CredentialResponse,
+    SecretDriverResponse,
     CredentialUpdateRequest,
     ExecRequest,
     PushRequest,
+    SSHIdentityCreateRequest,
+    SSHIdentityResponse,
     WriteFileRequest,
 )
-from src.services.credential_store import credential_store, CredentialStoreError
+from src.services.credential_store import (
+    CredentialStoreError,
+    credential_store,
+    list_secret_drivers,
+)
 from src.services.file_operations import read_file, write_file
 from src.services.git_operations import (
     OperationError,
@@ -22,6 +29,7 @@ from src.services.git_operations import (
     push,
     resolve_clone_target,
 )
+from src.services.ssh_identity_store import SSHIdentityStoreError, ssh_identity_store
 from src.services.workspace_inventory import inventory_service
 
 router = APIRouter(tags=["rest"])
@@ -30,17 +38,28 @@ router = APIRouter(tags=["rest"])
 @router.post("/clone")
 def clone_repo_route(request: CloneRequest) -> dict[str, str]:
     try:
+        if request.credential_id and request.ssh_identity_id:
+            raise OperationError("Provide either credential_id or ssh_identity_id, not both")
         credential = None
+        ssh_identity_file = None
         if request.credential_id:
             credential = credential_store.get_credential_for_use(request.credential_id, request.url)
-        output = clone_repo(request.url, request.destination, credential=credential)
+        if request.ssh_identity_id:
+            identity = ssh_identity_store.get_identity_for_use(request.ssh_identity_id, request.url)
+            ssh_identity_file = identity.identity_file
+        output = clone_repo(
+            request.url,
+            request.destination,
+            credential=credential,
+            ssh_identity_file=ssh_identity_file,
+        )
         clone_target = resolve_clone_target(request.url, request.destination)
         inventory_service.register_cloned_repository(
             root_path=clone_target,
             origin_url=request.url,
         )
         return {"output": output}
-    except (OperationError, CredentialStoreError) as exc:
+    except (OperationError, CredentialStoreError, SSHIdentityStoreError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -149,4 +168,55 @@ def revoke_credential_route(credential_id: str) -> CredentialResponse:
         metadata = credential_store.revoke_credential(credential_id)
         return _to_credential_response(metadata)
     except CredentialStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/credentials/drivers")
+def list_credential_drivers_route() -> dict[str, object]:
+    return {
+        "active_driver": credential_store.secret_driver_name,
+        "drivers": [SecretDriverResponse(**item) for item in list_secret_drivers()],
+    }
+
+
+def _to_ssh_identity_response(metadata) -> SSHIdentityResponse:
+    return SSHIdentityResponse(
+        identity_id=metadata.identity_id,
+        name=metadata.name,
+        host=metadata.host,
+        username=metadata.username,
+        identity_file=metadata.identity_file,
+        public_key=metadata.public_key,
+        created_at=metadata.created_at,
+        updated_at=metadata.updated_at,
+        revoked_at=metadata.revoked_at,
+        is_active=metadata.is_active,
+    )
+
+
+@router.get("/ssh-identities")
+def list_ssh_identities_route() -> dict[str, list[SSHIdentityResponse]]:
+    items = ssh_identity_store.list_identities()
+    return {"ssh_identities": [_to_ssh_identity_response(item) for item in items]}
+
+
+@router.post("/ssh-identities")
+def create_ssh_identity_route(request: SSHIdentityCreateRequest) -> SSHIdentityResponse:
+    try:
+        metadata = ssh_identity_store.create_identity(
+            name=request.name,
+            host=request.host,
+            username=request.username,
+        )
+        return _to_ssh_identity_response(metadata)
+    except SSHIdentityStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/ssh-identities/{identity_id}")
+def revoke_ssh_identity_route(identity_id: str) -> SSHIdentityResponse:
+    try:
+        metadata = ssh_identity_store.revoke_identity(identity_id)
+        return _to_ssh_identity_response(metadata)
+    except SSHIdentityStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

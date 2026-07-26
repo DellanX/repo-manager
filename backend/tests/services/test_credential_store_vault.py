@@ -4,7 +4,7 @@ import json
 from urllib.error import HTTPError
 
 import pytest
-from src.services.credential_store import CredentialStoreError, VaultSecretBackend
+from src.services.credential_store import CredentialStoreError, VaultKV2SecretDriver
 
 
 class _FakeResponse:
@@ -33,7 +33,7 @@ def test_t_vault_backend_set_secret_uses_kv_v2_data_path(monkeypatch: pytest.Mon
         return _FakeResponse("{}")
 
     monkeypatch.setattr("src.services.credential_store.request.urlopen", fake_urlopen)
-    backend = VaultSecretBackend(
+    backend = VaultKV2SecretDriver(
         addr="https://vault.example",
         token="vault-token",
         mount="secret",
@@ -55,7 +55,7 @@ def test_t_vault_backend_get_secret_reads_nested_data(monkeypatch: pytest.Monkey
         "src.services.credential_store.request.urlopen",
         lambda req, timeout: _FakeResponse(body),
     )
-    backend = VaultSecretBackend(
+    backend = VaultKV2SecretDriver(
         addr="https://vault.example",
         token="vault-token",
     )
@@ -69,7 +69,7 @@ def test_t_vault_backend_get_secret_404_returns_none(monkeypatch: pytest.MonkeyP
         raise HTTPError(req.full_url, 404, "Not Found", {}, None)
 
     monkeypatch.setattr("src.services.credential_store.request.urlopen", fake_urlopen)
-    backend = VaultSecretBackend(
+    backend = VaultKV2SecretDriver(
         addr="https://vault.example",
         token="vault-token",
     )
@@ -78,6 +78,6 @@ def test_t_vault_backend_get_secret_404_returns_none(monkeypatch: pytest.MonkeyP
 
 def test_t_vault_backend_requires_addr_and_token() -> None:
     """T-CRED-VAULT-CONFIG-REQUIRED"""
-    backend = VaultSecretBackend(addr=None, token=None)
+    backend = VaultKV2SecretDriver(addr=None, token=None)
     with pytest.raises(CredentialStoreError, match="REPO_MANAGER_VAULT_ADDR"):
         backend.set_secret("cred-1", "secret-value")

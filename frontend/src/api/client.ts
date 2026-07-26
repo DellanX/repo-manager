@@ -80,6 +80,35 @@ export interface CredentialCreatePayload {
   secret: string
 }
 
+export interface SecretDriverInfo {
+  name: string
+  is_secure: boolean
+}
+
+export interface CredentialDriversResponse {
+  active_driver: string
+  drivers: SecretDriverInfo[]
+}
+
+export interface SSHIdentityInfo {
+  identity_id: string
+  name: string
+  host: string
+  username: string
+  identity_file: string
+  public_key: string
+  created_at: string
+  updated_at: string
+  revoked_at: string | null
+  is_active: boolean
+}
+
+export interface SSHIdentityCreatePayload {
+  name: string
+  host: string
+  username: string
+}
+
 class ApiClient {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -129,13 +158,21 @@ class ApiClient {
   }
 
   // Repositories
-  async cloneRepository(url: string, destination?: string, credentialId?: string): Promise<void> {
-    const payload: { url: string; destination?: string; credential_id?: string } = { url }
+  async cloneRepository(
+    url: string,
+    destination?: string,
+    credentialId?: string,
+    sshIdentityId?: string
+  ): Promise<void> {
+    const payload: { url: string; destination?: string; credential_id?: string; ssh_identity_id?: string } = { url }
     if (destination) {
       payload.destination = destination
     }
     if (credentialId) {
       payload.credential_id = credentialId
+    }
+    if (sshIdentityId) {
+      payload.ssh_identity_id = sshIdentityId
     }
 
     await this.request<{ output: string }>('/clone', {
@@ -159,6 +196,29 @@ class ApiClient {
 
   async revokeCredential(credentialId: string): Promise<CredentialInfo> {
     return this.request<CredentialInfo>(`/credentials/${credentialId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async getCredentialDrivers(): Promise<CredentialDriversResponse> {
+    return this.request<CredentialDriversResponse>('/credentials/drivers')
+  }
+
+  // SSH identities
+  async listSshIdentities(): Promise<SSHIdentityInfo[]> {
+    const payload = await this.request<{ ssh_identities: SSHIdentityInfo[] }>('/ssh-identities')
+    return payload.ssh_identities
+  }
+
+  async createSshIdentity(input: SSHIdentityCreatePayload): Promise<SSHIdentityInfo> {
+    return this.request<SSHIdentityInfo>('/ssh-identities', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    })
+  }
+
+  async revokeSshIdentity(identityId: string): Promise<SSHIdentityInfo> {
+    return this.request<SSHIdentityInfo>(`/ssh-identities/${identityId}`, {
       method: 'DELETE'
     })
   }

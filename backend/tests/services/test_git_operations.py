@@ -20,7 +20,7 @@ class DummyCompleted:
 def test_t_git_run_success_returns_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-RUN-STDOUT"""
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         assert capture_output is True
         assert text is True
         return DummyCompleted(0, "ok", "")
@@ -32,7 +32,7 @@ def test_t_git_run_success_returns_stdout(monkeypatch: pytest.MonkeyPatch) -> No
 def test_t_git_run_failure_uses_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-RUN-ERROR-STDERR"""
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         return DummyCompleted(1, "", "fatal")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -43,7 +43,7 @@ def test_t_git_run_failure_uses_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_git_run_failure_fallback_message(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-RUN-ERROR-FALLBACK"""
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         return DummyCompleted(1, "", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -55,7 +55,7 @@ def test_t_git_commit_runs_add_then_commit(monkeypatch: pytest.MonkeyPatch) -> N
     """T-GIT-COMMIT-SEQUENCE"""
     calls: list[list[str]] = []
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         calls.append(cmd)
         return DummyCompleted(0, "ok", "")
 
@@ -70,7 +70,7 @@ def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-CLONE-IN-WORKSPACE"""
     captured = {}
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         return DummyCompleted(0, "ok", "")
@@ -86,7 +86,7 @@ def test_t_git_clone_with_credential_uses_authenticated_url(monkeypatch: pytest.
     """T-GIT-CLONE-CREDENTIAL-URL"""
     captured = {}
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         captured["cmd"] = cmd
         return DummyCompleted(0, "ok", "")
 
@@ -108,7 +108,7 @@ def test_t_git_clone_with_credential_uses_authenticated_url(monkeypatch: pytest.
 def test_t_git_clone_redacts_secret_from_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-CLONE-SECRET-REDACT"""
 
-    def fake_run(cmd, cwd=None, capture_output=True, text=True):
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
         return DummyCompleted(1, "", "fatal: https://oauth2:abc123@gitlab.com/group/repo.git not found")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -124,6 +124,23 @@ def test_t_git_clone_redacts_secret_from_errors(monkeypatch: pytest.MonkeyPatch)
             ),
         )
     assert "abc123" not in str(exc_info.value)
+
+
+def test_t_git_clone_with_ssh_identity_sets_git_ssh_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-GIT-CLONE-SSH-IDENTITY-ENV"""
+    captured = {}
+
+    def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
+        captured["env"] = env
+        return DummyCompleted(0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    git_operations.clone_repo(
+        "git@gitlab.com:group/repo.git",
+        ssh_identity_file="C:/keys/ssh-1",
+    )
+
+    assert captured["env"]["GIT_SSH_COMMAND"].startswith('ssh -i "C:/keys/ssh-1"')
 
 
 def test_t_git_resolve_clone_target_from_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,7 +180,7 @@ def test_t_git_operations_emit_started_and_completed(
     monkeypatch.setattr(
         subprocess,
         "run",
-        lambda cmd, cwd=None, capture_output=True, text=True: DummyCompleted(0, "ok", ""),
+        lambda cmd, cwd=None, capture_output=True, text=True, env=None: DummyCompleted(0, "ok", ""),
     )
 
     op(*args)

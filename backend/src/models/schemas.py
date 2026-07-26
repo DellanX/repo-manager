@@ -7,6 +7,7 @@ class CloneRequest(BaseModel):
     url: str
     destination: str | None = None
     credential_id: str | None = None
+    ssh_identity_id: str | None = None
 
 
 class CheckoutRequest(BaseModel):
@@ -64,6 +65,30 @@ class CredentialResponse(BaseModel):
     provider: CredentialProvider
     host: str
     username: str
+    created_at: str
+    updated_at: str
+    revoked_at: str | None
+    is_active: bool
+
+
+class SecretDriverResponse(BaseModel):
+    name: str
+    is_secure: bool
+
+
+class SSHIdentityCreateRequest(BaseModel):
+    name: str
+    host: str
+    username: str = "git"
+
+
+class SSHIdentityResponse(BaseModel):
+    identity_id: str
+    name: str
+    host: str
+    username: str
+    identity_file: str
+    public_key: str
     created_at: str
     updated_at: str
     revoked_at: str | None

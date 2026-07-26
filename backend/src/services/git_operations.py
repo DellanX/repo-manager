@@ -62,8 +62,13 @@ def _sanitize_output(output: str, redacted_values: list[str] | None = None) -> s
     return cleaned
 
 
-def _run(cmd: list[str], cwd: str | None = None, redacted_values: list[str] | None = None) -> str:
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+def _run(
+    cmd: list[str],
+    cwd: str | None = None,
+    redacted_values: list[str] | None = None,
+    env: dict[str, str] | None = None,
+) -> str:
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         stderr = _sanitize_output(result.stderr.strip(), redacted_values)
         raise OperationError(stderr or "Command failed")
@@ -92,7 +97,11 @@ def clone_repo(
     url: str,
     destination: str | None = None,
     credential: CredentialForUse | None = None,
+    ssh_identity_file: str | None = None,
 ) -> str:
+    if credential is not None and ssh_identity_file is not None:
+        raise OperationError("Clone cannot use both token credential and SSH identity")
+
     resolved_destination = _resolve_clone_destination(destination)
     payload = {"url": url}
     if destination:
@@ -100,6 +109,7 @@ def clone_repo(
     if credential is not None:
         payload["credential_id"] = credential.credential_id
     redacted_values: list[str] | None = None
+    env = None
 
     events.operation_events.record("service", "clone", "started", payload)
 
@@ -107,10 +117,15 @@ def clone_repo(
     if credential is not None:
         clone_url = _build_authenticated_url(url, credential)
         redacted_values = [credential.secret, clone_url]
+    if ssh_identity_file is not None:
+        env = os.environ.copy()
+        env["GIT_SSH_COMMAND"] = (
+            f'ssh -i "{ssh_identity_file}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+        )
     cmd = ["git", "clone", clone_url]
     if resolved_destination:
         cmd.append(resolved_destination)
-    output = _run(cmd, cwd=WORKSPACE, redacted_values=redacted_values)
+    output = _run(cmd, cwd=WORKSPACE, redacted_values=redacted_values, env=env)
 
     events.operation_events.record("service", "clone", "completed", payload)
     return output

@@ -102,11 +102,16 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function cloneRepository(url: string, destination?: string, credentialId?: string) {
+  async function cloneRepository(
+    url: string,
+    destination?: string,
+    credentialId?: string,
+    sshIdentityId?: string
+  ) {
     loading.value = true
     error.value = null
     try {
-      await apiClient.cloneRepository(url, destination, credentialId)
+      await apiClient.cloneRepository(url, destination, credentialId, sshIdentityId)
       await fetchInventory()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to clone repository'

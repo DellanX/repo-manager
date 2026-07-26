@@ -2,17 +2,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { PageHeader, AppButton, DataTable, EmptyState } from '@/components/ui'
-import { apiClient, type CredentialInfo } from '@/api/client'
+import { apiClient, type CredentialInfo, type SSHIdentityInfo } from '@/api/client'
 
 const store = useInventoryStore()
 const cloneUrl = ref('')
 const cloneDestination = ref('')
 const cloneCredentialId = ref('')
+const cloneSshIdentityId = ref('')
 const cloneError = ref<string | null>(null)
 const cloneSuccess = ref<string | null>(null)
 const scanSuccess = ref<string | null>(null)
 const showCloneForm = ref(false)
 const credentials = ref<CredentialInfo[]>([])
+const sshIdentities = ref<SSHIdentityInfo[]>([])
 
 const isCloneDisabled = computed(() => store.loading || cloneUrl.value.trim().length === 0)
 
@@ -20,6 +22,9 @@ onMounted(() => {
   store.fetchInventory()
   loadCredentials().catch(() => {
     cloneError.value = 'Unable to load credentials.'
+  })
+  loadSshIdentities().catch(() => {
+    cloneError.value = 'Unable to load SSH identities.'
   })
 })
 
@@ -32,10 +37,27 @@ function openCloneForm(originUrl?: string) {
   cloneUrl.value = originUrl || ''
   cloneDestination.value = ''
   cloneCredentialId.value = ''
+  cloneSshIdentityId.value = ''
 }
 
 async function loadCredentials() {
   credentials.value = await apiClient.listCredentials()
+}
+
+async function loadSshIdentities() {
+  sshIdentities.value = await apiClient.listSshIdentities()
+}
+
+function onCredentialChange() {
+  if (cloneCredentialId.value) {
+    cloneSshIdentityId.value = ''
+  }
+}
+
+function onSshIdentityChange() {
+  if (cloneSshIdentityId.value) {
+    cloneCredentialId.value = ''
+  }
 }
 
 async function submitClone() {
@@ -52,12 +74,14 @@ async function submitClone() {
     await store.cloneRepository(
       url,
       cloneDestination.value.trim() || undefined,
-      cloneCredentialId.value || undefined
+      cloneCredentialId.value || undefined,
+      cloneSshIdentityId.value || undefined
     )
     cloneSuccess.value = `Clone started for ${url}`
     cloneUrl.value = ''
     cloneDestination.value = ''
     cloneCredentialId.value = ''
+    cloneSshIdentityId.value = ''
     showCloneForm.value = false
   } catch (error) {
     cloneError.value = error instanceof Error ? error.message : 'Failed to clone repository.'
@@ -111,6 +135,7 @@ async function rescanRepositories() {
           id="clone-credential"
           v-model="cloneCredentialId"
           class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          @change="onCredentialChange"
         >
           <option value="">None</option>
           <option
@@ -119,6 +144,24 @@ async function rescanRepositories() {
             :value="credential.credential_id"
           >
             {{ credential.name }} ({{ credential.provider }} @ {{ credential.host }})
+          </option>
+        </select>
+      </div>
+      <div>
+        <label for="clone-ssh-identity" class="block text-sm font-medium mb-1">SSH Identity (optional)</label>
+        <select
+          id="clone-ssh-identity"
+          v-model="cloneSshIdentityId"
+          class="w-full rounded border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2"
+          @change="onSshIdentityChange"
+        >
+          <option value="">None</option>
+          <option
+            v-for="identity in sshIdentities.filter((item) => item.is_active)"
+            :key="identity.identity_id"
+            :value="identity.identity_id"
+          >
+            {{ identity.name }} ({{ identity.username }}@{{ identity.host }})
           </option>
         </select>
       </div>

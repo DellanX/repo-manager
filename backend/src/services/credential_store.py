@@ -18,6 +18,7 @@ from src.core import events
 from src.core.config import WORKSPACE
 
 _KEYRING_SERVICE = "repo-manager.credentials"
+_IN_MEMORY_DRIVER_SECRETS: dict[str, str] = {}
 
 
 class CredentialStoreError(Exception):
@@ -46,7 +47,10 @@ class CredentialForUse:
     secret: str
 
 
-class SecretBackend:
+class SecretDriver:
+    name = "base"
+    is_secure = False
+
     def set_secret(self, credential_id: str, secret: str) -> None:
         raise NotImplementedError
 
@@ -57,7 +61,10 @@ class SecretBackend:
         raise NotImplementedError
 
 
-class KeyringSecretBackend(SecretBackend):
+class KeyringSecretDriver(SecretDriver):
+    name = "keyring"
+    is_secure = True
+
     def set_secret(self, credential_id: str, secret: str) -> None:
         try:
             keyring.set_password(_KEYRING_SERVICE, credential_id, secret)
@@ -85,7 +92,26 @@ class KeyringSecretBackend(SecretBackend):
             raise CredentialStoreError("Failed to delete credential secret from secure storage") from exc
 
 
-class VaultSecretBackend(SecretBackend):
+class InMemorySecretDriver(SecretDriver):
+    name = "inmemory"
+    is_secure = False
+
+    def set_secret(self, credential_id: str, secret: str) -> None:
+        _IN_MEMORY_DRIVER_SECRETS[credential_id] = secret
+
+    def get_secret(self, credential_id: str) -> str | None:
+        return _IN_MEMORY_DRIVER_SECRETS.get(credential_id)
+
+    def delete_secret(self, credential_id: str) -> None:
+        if credential_id not in _IN_MEMORY_DRIVER_SECRETS:
+            raise CredentialStoreError("Credential secret was not found in secure storage")
+        del _IN_MEMORY_DRIVER_SECRETS[credential_id]
+
+
+class VaultKV2SecretDriver(SecretDriver):
+    name = "vault-kv-v2"
+    is_secure = True
+
     def __init__(
         self,
         *,
@@ -105,13 +131,13 @@ class VaultSecretBackend(SecretBackend):
 
     def _validate_config(self) -> None:
         if not self.addr:
-            raise CredentialStoreError("Vault backend requires REPO_MANAGER_VAULT_ADDR")
+            raise CredentialStoreError("Vault driver requires REPO_MANAGER_VAULT_ADDR")
         if not self.token:
-            raise CredentialStoreError("Vault backend requires REPO_MANAGER_VAULT_TOKEN")
+            raise CredentialStoreError("Vault driver requires REPO_MANAGER_VAULT_TOKEN")
         if not self.mount:
-            raise CredentialStoreError("Vault backend requires a non-empty mount path")
+            raise CredentialStoreError("Vault driver requires a non-empty mount path")
         if not self.path_prefix:
-            raise CredentialStoreError("Vault backend requires a non-empty path prefix")
+            raise CredentialStoreError("Vault driver requires a non-empty path prefix")
 
     def _secret_path(self, credential_id: str) -> str:
         return f"{self.path_prefix}/{credential_id}"
@@ -155,7 +181,7 @@ class VaultSecretBackend(SecretBackend):
                 return None
             raise CredentialStoreError(f"Vault request failed with HTTP {exc.code}") from exc
         except URLError as exc:
-            raise CredentialStoreError("Vault backend is unreachable") from exc
+            raise CredentialStoreError("Vault driver is unreachable") from exc
         except json.JSONDecodeError as exc:
             raise CredentialStoreError("Vault returned invalid JSON") from exc
 
@@ -192,32 +218,59 @@ class VaultSecretBackend(SecretBackend):
             raise CredentialStoreError("Credential secret was not found in secure storage")
 
 
-def create_secret_backend_from_env() -> SecretBackend:
-    backend_name = os.getenv("REPO_MANAGER_SECRET_BACKEND", "keyring").strip().lower()
-    if backend_name == "keyring":
-        return KeyringSecretBackend()
-    if backend_name == "vault":
-        return VaultSecretBackend(
-            addr=os.getenv("REPO_MANAGER_VAULT_ADDR"),
-            token=os.getenv("REPO_MANAGER_VAULT_TOKEN"),
-            mount=os.getenv("REPO_MANAGER_VAULT_MOUNT", "secret"),
-            path_prefix=os.getenv("REPO_MANAGER_VAULT_PATH_PREFIX", "repo-manager/credentials"),
-            namespace=os.getenv("REPO_MANAGER_VAULT_NAMESPACE"),
-        )
-    raise CredentialStoreError("Unsupported secret backend")
+def _build_vault_driver_from_env() -> SecretDriver:
+    return VaultKV2SecretDriver(
+        addr=os.getenv("REPO_MANAGER_VAULT_ADDR"),
+        token=os.getenv("REPO_MANAGER_VAULT_TOKEN"),
+        mount=os.getenv("REPO_MANAGER_VAULT_MOUNT", "secret"),
+        path_prefix=os.getenv("REPO_MANAGER_VAULT_PATH_PREFIX", "repo-manager/credentials"),
+        namespace=os.getenv("REPO_MANAGER_VAULT_NAMESPACE"),
+    )
+
+
+SECRET_DRIVER_FACTORIES = {
+    "keyring": KeyringSecretDriver,
+    "inmemory": InMemorySecretDriver,
+    "vault-kv-v2": _build_vault_driver_from_env,
+}
+SECRET_DRIVER_ALIASES = {
+    "vault": "vault-kv-v2",
+}
+
+
+def list_secret_drivers() -> list[dict[str, object]]:
+    return [
+        {"name": "keyring", "is_secure": True},
+        {"name": "inmemory", "is_secure": False},
+        {"name": "vault-kv-v2", "is_secure": True},
+    ]
+
+
+def create_secret_driver_from_env() -> SecretDriver:
+    configured = os.getenv("REPO_MANAGER_SECRET_DRIVER") or os.getenv("REPO_MANAGER_SECRET_BACKEND")
+    driver_name = (configured or "keyring").strip().lower()
+    normalized_name = SECRET_DRIVER_ALIASES.get(driver_name, driver_name)
+    factory = SECRET_DRIVER_FACTORIES.get(normalized_name)
+    if factory is None:
+        raise CredentialStoreError("Unsupported secret driver")
+    driver = factory()
+    if isinstance(driver, SecretDriver):
+        return driver
+    raise CredentialStoreError("Secret driver factory produced an invalid instance")
 
 
 class CredentialStoreService:
     def __init__(
         self,
         db_path: str | None = None,
-        secret_backend: SecretBackend | None = None,
+        secret_driver: SecretDriver | None = None,
     ) -> None:
         default_path = Path(WORKSPACE) / ".repo-manager" / "credentials.sqlite3"
         db_value = db_path or os.getenv("REPO_MANAGER_CREDENTIAL_DB_PATH", str(default_path))
         self.db_path = Path(db_value)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._secret_backend = secret_backend or create_secret_backend_from_env()
+        self._secret_driver = secret_driver or create_secret_driver_from_env()
+        self.secret_driver_name = self._secret_driver.name
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -455,13 +508,13 @@ class CredentialStoreService:
         )
 
     def _set_secret(self, credential_id: str, secret: str) -> None:
-        self._secret_backend.set_secret(credential_id, secret)
+        self._secret_driver.set_secret(credential_id, secret)
 
     def _get_secret(self, credential_id: str) -> str | None:
-        return self._secret_backend.get_secret(credential_id)
+        return self._secret_driver.get_secret(credential_id)
 
     def _delete_secret(self, credential_id: str) -> None:
-        self._secret_backend.delete_secret(credential_id)
+        self._secret_driver.delete_secret(credential_id)
 
 
 credential_store = CredentialStoreService()

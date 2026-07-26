@@ -52,14 +52,14 @@ MCP must expose equivalent credential lifecycle tools with least-privilege defau
   - `credentials.revoke`
   - `git.clone` with optional `credential_id`
 
-### Secret Backend Configuration
+### Secret Driver Configuration
 
-Credential metadata is persisted in SQLite, while secret values are stored through a pluggable secure backend.
+Credential metadata is persisted in SQLite, while secret values are delegated to a pluggable driver.
 
-- `REPO_MANAGER_SECRET_BACKEND=keyring` (default)
+- `REPO_MANAGER_SECRET_DRIVER=keyring` (default, secure)
   - Uses OS keyring/credential manager.
   - If unavailable, operations fail with: `No secure keyring backend is available`.
-- `REPO_MANAGER_SECRET_BACKEND=vault`
+- `REPO_MANAGER_SECRET_DRIVER=vault-kv-v2` (secure)
   - Uses HashiCorp Vault KV v2 API.
   - Required env vars:
     - `REPO_MANAGER_VAULT_ADDR` (for example `https://vault.example.com`)
@@ -67,7 +67,18 @@ Credential metadata is persisted in SQLite, while secret values are stored throu
   - Optional env vars:
     - `REPO_MANAGER_VAULT_MOUNT` (default: `secret`)
     - `REPO_MANAGER_VAULT_PATH_PREFIX` (default: `repo-manager/credentials`)
-    - `REPO_MANAGER_VAULT_NAMESPACE` (for Vault Enterprise namespaces)
+    - `REPO_MANAGER_VAULT_NAMESPACE`
+- `REPO_MANAGER_SECRET_DRIVER=inmemory` (non-secure, development/testing only)
+  - Keeps secret values in process memory only.
+
+Compatibility alias: `REPO_MANAGER_SECRET_BACKEND` is still accepted.
+
+### SSH Identity Management
+
+- `POST /api/v1/ssh-identities` generates an Ed25519 SSH keypair and identity file under the managed workspace.
+- `GET /api/v1/ssh-identities` returns identity metadata and public keys for copy/paste into Git host deploy-key settings.
+- `DELETE /api/v1/ssh-identities/{identity_id}` revokes identity metadata and removes managed key files.
+- `POST /api/v1/clone` accepts optional `ssh_identity_id` for SSH clone authentication.
 
 ## Provider Requirements
 

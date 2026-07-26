@@ -5,6 +5,7 @@ from src.models.schemas import (
     CloneRequest,
     CommitRequest,
     CredentialCreateRequest,
+    SSHIdentityCreateRequest,
     CredentialUpdateRequest,
     ExecRequest,
     MCPCallRequest,
@@ -79,8 +80,10 @@ def test_t_schema_all_models_accept_valid_data() -> None:
     clone_request = CloneRequest(
         url="https://github.com/test/repo.git",
         credential_id="cred-1",
+        ssh_identity_id="ssh-1",
     )
     assert clone_request.credential_id == "cred-1"
+    assert clone_request.ssh_identity_id == "ssh-1"
     cred_create = CredentialCreateRequest(
         name="GitLab PAT",
         provider="gitlab",
@@ -91,3 +94,5 @@ def test_t_schema_all_models_accept_valid_data() -> None:
     assert cred_create.provider == "gitlab"
     cred_update = CredentialUpdateRequest(name="Updated")
     assert cred_update.name == "Updated"
+    ssh_identity_create = SSHIdentityCreateRequest(name="GitLab Key", host="gitlab.com")
+    assert ssh_identity_create.username == "git"

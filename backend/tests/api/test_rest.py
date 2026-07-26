@@ -16,7 +16,10 @@ def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
     )
-    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None, credential=None: "cloned")
+    monkeypatch.setattr(
+        "src.api.rest.clone_repo",
+        lambda url, destination=None, credential=None, ssh_identity_file=None: "cloned",
+    )
     resp = client.post("/api/v1/clone", json={"url": "https://example/repo.git"})
     assert resp.status_code == 200
     assert resp.json() == {"output": "cloned"}
@@ -31,7 +34,12 @@ def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPat
         lambda root_path, origin_url: None,
     )
 
-    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
+    def fake_clone(
+        url: str,
+        destination: str | None = None,
+        credential=None,
+        ssh_identity_file=None,
+    ) -> str:
         called["url"] = url
         called["destination"] = destination
         return "cloned"
@@ -69,10 +77,16 @@ def test_t_rest_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyP
         lambda root_path, origin_url: None,
     )
 
-    def fake_clone(url: str, destination: str | None = None, credential=None) -> str:
+    def fake_clone(
+        url: str,
+        destination: str | None = None,
+        credential=None,
+        ssh_identity_file=None,
+    ) -> str:
         called["url"] = url
         called["destination"] = destination
         called["credential"] = credential
+        called["ssh_identity_file"] = ssh_identity_file
         return "cloned"
 
     monkeypatch.setattr("src.api.rest.clone_repo", fake_clone)
@@ -84,6 +98,62 @@ def test_t_rest_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyP
     assert called["url"] == "https://gitlab.com/group/repo.git"
     assert called["destination"] is None
     assert called["credential"].credential_id == "cred-1"
+
+
+def test_t_rest_clone_with_ssh_identity_id_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CLONE-SSH-IDENTITY-ID-200"""
+    called = {}
+
+    class DummyIdentity:
+        identity_id = "ssh-1"
+        host = "gitlab.com"
+        username = "git"
+        identity_file = "C:/keys/ssh-1"
+
+    monkeypatch.setattr(
+        "src.api.rest.ssh_identity_store.get_identity_for_use",
+        lambda identity_id, url: DummyIdentity(),
+    )
+    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.inventory_service.register_cloned_repository",
+        lambda root_path, origin_url: None,
+    )
+
+    def fake_clone(
+        url: str,
+        destination: str | None = None,
+        credential=None,
+        ssh_identity_file=None,
+    ) -> str:
+        called["url"] = url
+        called["destination"] = destination
+        called["credential"] = credential
+        called["ssh_identity_file"] = ssh_identity_file
+        return "cloned"
+
+    monkeypatch.setattr("src.api.rest.clone_repo", fake_clone)
+    resp = client.post(
+        "/api/v1/clone",
+        json={"url": "git@gitlab.com:group/repo.git", "ssh_identity_id": "ssh-1"},
+    )
+    assert resp.status_code == 200
+    assert called["credential"] is None
+    assert called["ssh_identity_file"] == "C:/keys/ssh-1"
+
+
+def test_t_rest_clone_rejects_dual_auth_400(client) -> None:
+    """T-REST-CLONE-DUAL-AUTH-400"""
+    resp = client.post(
+        "/api/v1/clone",
+        json={
+            "url": "https://gitlab.com/group/repo.git",
+            "credential_id": "cred-1",
+            "ssh_identity_id": "ssh-1",
+        },
+    )
+    assert resp.status_code == 400
+    assert "either credential_id or ssh_identity_id" in resp.json()["detail"]
 
 
 def test_t_rest_checkout_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,7 +234,7 @@ def test_t_rest_file_get_missing_maps_404(client, monkeypatch: pytest.MonkeyPatc
 def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-OP-ERROR-400"""
 
-    def fail(url: str, destination: str | None = None, credential=None) -> str:
+    def fail(url: str, destination: str | None = None, credential=None, ssh_identity_file=None) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.rest.clone_repo", fail)
@@ -177,7 +247,10 @@ def test_t_rest_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatc
     """T-REST-CLONE-INV-REGISTER"""
     captured = {}
 
-    monkeypatch.setattr("src.api.rest.clone_repo", lambda url, destination=None, credential=None: "cloned")
+    monkeypatch.setattr(
+        "src.api.rest.clone_repo",
+        lambda url, destination=None, credential=None, ssh_identity_file=None: "cloned",
+    )
     monkeypatch.setattr(
         "src.api.rest.resolve_clone_target",
         lambda url, destination=None: "/workspace/repo-manager-copy",
@@ -343,6 +416,77 @@ def test_t_rest_credential_revoke_200(client, monkeypatch: pytest.MonkeyPatch) -
     resp = client.delete("/api/v1/credentials/cred-1")
     assert resp.status_code == 200
     assert resp.json()["is_active"] is False
+
+
+def test_t_rest_credential_drivers_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-CREDENTIAL-DRIVERS-200"""
+    monkeypatch.setattr("src.api.rest.credential_store.secret_driver_name", "keyring")
+    monkeypatch.setattr(
+        "src.api.rest.list_secret_drivers",
+        lambda: [{"name": "keyring", "is_secure": True}],
+    )
+    resp = client.get("/api/v1/credentials/drivers")
+    assert resp.status_code == 200
+    assert resp.json()["active_driver"] == "keyring"
+    assert resp.json()["drivers"][0]["name"] == "keyring"
+
+
+def test_t_rest_ssh_identity_create_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-SSH-IDENTITY-CREATE-200"""
+    monkeypatch.setattr(
+        "src.api.rest.ssh_identity_store.create_identity",
+        lambda name, host, username: type(
+            "Meta",
+            (),
+            {
+                "identity_id": "ssh-1",
+                "name": name,
+                "host": host,
+                "username": username,
+                "identity_file": "C:/keys/ssh-1",
+                "public_key": "ssh-ed25519 AAAAB3Nza...",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "revoked_at": None,
+                "is_active": True,
+            },
+        )(),
+    )
+    resp = client.post(
+        "/api/v1/ssh-identities",
+        json={"name": "GitLab Key", "host": "gitlab.com", "username": "git"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["identity_id"] == "ssh-1"
+    assert "public_key" in resp.json()
+
+
+def test_t_rest_ssh_identity_list_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """T-REST-SSH-IDENTITY-LIST-200"""
+    monkeypatch.setattr(
+        "src.api.rest.ssh_identity_store.list_identities",
+        lambda: [
+            type(
+                "Meta",
+                (),
+                {
+                    "identity_id": "ssh-1",
+                    "name": "GitLab Key",
+                    "host": "gitlab.com",
+                    "username": "git",
+                    "identity_file": "C:/keys/ssh-1",
+                    "public_key": "ssh-ed25519 AAAAB3Nza...",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-01T00:00:00Z",
+                    "revoked_at": None,
+                    "is_active": True,
+                },
+            )()
+        ],
+    )
+    resp = client.get("/api/v1/ssh-identities")
+    assert resp.status_code == 200
+    assert resp.json()["ssh_identities"][0]["identity_id"] == "ssh-1"
 
 
 def test_t_rest_credential_update_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
