@@ -16,7 +16,7 @@ from src.models.schemas import (
 
 def test_t_schema_push_defaults() -> None:
     """T-SCHEMA-PUSH-DEFAULTS"""
-    model = PushRequest()
+    model = PushRequest(workspace_id="ws-1")
     assert model.remote == "origin"
     assert model.branch == "main"
 
@@ -72,11 +72,13 @@ def test_t_schema_all_models_accept_valid_data() -> None:
         CloneRequest(url="https://github.com/test/repo.git").url
         == "https://github.com/test/repo.git"
     )
-    assert CheckoutRequest(branch="main").branch == "main"
-    assert CommitRequest(message="test commit").message == "test commit"
-    assert WriteFileRequest(path="test.txt", content="data").path == "test.txt"
-    assert ExecRequest(cmd="git status").cmd == "git status"
-    assert PushRequest(remote="upstream", branch="feature").remote == "upstream"
+    assert CheckoutRequest(workspace_id="ws-1", branch="main").branch == "main"
+    assert CommitRequest(workspace_id="ws-1", message="test commit").message == "test commit"
+    assert WriteFileRequest(workspace_id="ws-1", path="test.txt", content="data").path == "test.txt"
+    assert ExecRequest(workspace_id="ws-1", cmd="git status").cmd == "git status"
+    assert (
+        PushRequest(workspace_id="ws-1", remote="upstream", branch="feature").remote == "upstream"
+    )
     clone_request = CloneRequest(
         url="https://github.com/test/repo.git",
         credential_id="cred-1",
