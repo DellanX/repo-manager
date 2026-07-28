@@ -4,6 +4,7 @@ import os
 import sqlite3
 import subprocess
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -112,10 +113,8 @@ class SSHIdentityStoreService:
             message = result.stderr.strip() or "Failed to generate SSH identity"
             raise SSHIdentityStoreError(message)
 
-        try:
+        with suppress(OSError):
             os.chmod(private_key_path, 0o600)
-        except OSError:
-            pass
 
         if not public_key_path.exists():
             raise SSHIdentityStoreError("SSH public key was not generated")

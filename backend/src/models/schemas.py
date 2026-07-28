@@ -121,25 +121,20 @@ class WorkspaceRenameRequest(BaseModel):
 
 # Web UI Inventory Schemas (per docs/specs/ui/webui.md)
 
-InventoryStatus = Literal["ready", "missing_path",
-                          "invalid_git_metadata", "stale"]
+InventoryStatus = Literal["ready", "missing_path", "invalid_git_metadata", "stale"]
 SourceMode = Literal["database", "filesystem"]
 
 
 class RepositoryInfo(BaseModel):
     """Repository information for inventory display."""
 
-    repository_id: str = Field(...,
-                               description="Stable unique repository identifier")
+    repository_id: str = Field(..., description="Stable unique repository identifier")
     name: str = Field(..., description="Repository name")
-    root_path: str = Field(...,
-                           description="Normalized absolute path to repository root")
+    root_path: str = Field(..., description="Normalized absolute path to repository root")
     origin_url: str = Field(..., description="Git origin remote URL")
     default_branch: str = Field(..., description="Default branch name")
-    status: InventoryStatus = Field(...,
-                                    description="Current repository status")
-    last_seen_at: str = Field(...,
-                              description="ISO8601 timestamp of last inventory check")
+    status: InventoryStatus = Field(..., description="Current repository status")
+    last_seen_at: str = Field(..., description="ISO8601 timestamp of last inventory check")
     last_fetched_at: str | None = Field(
         default=None,
         description="ISO8601 timestamp of most recent fetch/pull metadata update",
@@ -153,19 +148,15 @@ class RepositoryInfo(BaseModel):
 class WorkspaceInfo(BaseModel):
     """Workspace/worktree information for inventory display."""
 
-    workspace_id: str = Field(...,
-                              description="Stable unique workspace identifier")
+    workspace_id: str = Field(..., description="Stable unique workspace identifier")
     repository_id: str = Field(..., description="Parent repository ID")
     workspace_name: str = Field(..., description="Workspace display name")
     path: str = Field(..., description="Normalized absolute path to workspace")
     branch: str = Field(..., description="Current branch name")
     head_sha: str = Field(..., description="Current HEAD commit SHA")
-    is_dirty: bool = Field(...,
-                           description="Whether workspace has uncommitted changes")
-    status: InventoryStatus = Field(...,
-                                    description="Current workspace status")
-    last_seen_at: str = Field(...,
-                              description="ISO8601 timestamp of last inventory check")
+    is_dirty: bool = Field(..., description="Whether workspace has uncommitted changes")
+    status: InventoryStatus = Field(..., description="Current workspace status")
+    last_seen_at: str = Field(..., description="ISO8601 timestamp of last inventory check")
 
 
 class InventoryResponse(BaseModel):
@@ -178,8 +169,7 @@ class InventoryResponse(BaseModel):
         default_factory=list, description="List of managed workspaces"
     )
     source_mode: SourceMode = Field(..., description="Inventory source mode")
-    generated_at: str = Field(...,
-                              description="ISO8601 timestamp when inventory was generated")
+    generated_at: str = Field(..., description="ISO8601 timestamp when inventory was generated")
 
     @model_validator(mode="after")
     def deduplicate_entries(self) -> "InventoryResponse":
@@ -218,8 +208,7 @@ class InventoryCounts(BaseModel):
 
     repositories: int = Field(..., description="Total managed repositories")
     workspaces: int = Field(..., description="Total managed workspaces")
-    stale_or_missing: int = Field(...,
-                                  description="Stale or missing inventory items")
+    stale_or_missing: int = Field(..., description="Stale or missing inventory items")
 
 
 class DashboardResponse(BaseModel):
@@ -229,12 +218,8 @@ class DashboardResponse(BaseModel):
     health_status: Literal["healthy", "degraded"] = Field(
         ..., description="Global inventory health status"
     )
-    worktrees: list[WorkspaceInfo] = Field(
-        default_factory=list, description="Worktree table data"
-    )
+    worktrees: list[WorkspaceInfo] = Field(default_factory=list, description="Worktree table data")
     recent_activity: list[ActivityItem] = Field(
         default_factory=list, description="Recent activity feed"
     )
-    generated_at: str = Field(
-        ..., description="ISO8601 timestamp when dashboard was generated"
-    )
+    generated_at: str = Field(..., description="ISO8601 timestamp when dashboard was generated")

@@ -3,6 +3,7 @@
 Implements inventory management per docs/specs/ui/webui.md.
 Supports both database and filesystem discovery modes.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -73,9 +74,7 @@ class WorkspaceInventoryService:
         normalized_path = os.path.normpath(os.path.abspath(root_path))
         repo_path = Path(normalized_path)
         git_dir = self._resolve_git_dir(repo_path) if repo_path.exists() else None
-        last_fetched_at, last_commit_at = self._get_repository_timestamps(
-            repo_path, git_dir
-        )
+        last_fetched_at, last_commit_at = self._get_repository_timestamps(repo_path, git_dir)
         repo = RepositoryInfo(
             repository_id=repository_id,
             name=name,
@@ -92,8 +91,7 @@ class WorkspaceInventoryService:
         else:
             self._repositories[repository_id] = repo
         events.operation_events.record(
-            "inventory", "add_repository", "completed", {
-                "repository_id": repository_id}
+            "inventory", "add_repository", "completed", {"repository_id": repository_id}
         )
         return repo
 
@@ -163,8 +161,7 @@ class WorkspaceInventoryService:
         else:
             self._workspaces[workspace_id] = ws
         events.operation_events.record(
-            "inventory", "add_workspace", "completed", {
-                "workspace_id": workspace_id}
+            "inventory", "add_workspace", "completed", {"workspace_id": workspace_id}
         )
         return ws
 
@@ -274,8 +271,7 @@ class WorkspaceInventoryService:
                         last_seen_at=datetime.now(UTC).isoformat(),
                     )
 
-        events.operation_events.record(
-            "inventory", "reconcile", "completed", {})
+        events.operation_events.record("inventory", "reconcile", "completed", {})
 
     def get_inventory(self) -> InventoryResponse:
         """Get current inventory state.
@@ -283,8 +279,7 @@ class WorkspaceInventoryService:
         In database mode, returns stored records.
         In filesystem mode, scans workspace roots for git repositories.
         """
-        events.operation_events.record(
-            "inventory", "get_inventory", "started", {})
+        events.operation_events.record("inventory", "get_inventory", "started", {})
 
         try:
             if self.source_mode == "filesystem":
@@ -487,9 +482,7 @@ class WorkspaceInventoryService:
 
         repo = self._get_repository_by_id(workspace.repository_id)
         if repo is None:
-            raise InventoryError(
-                f"Repository not found for workspace: {workspace.repository_id}"
-            )
+            raise InventoryError(f"Repository not found for workspace: {workspace.repository_id}")
 
         events.operation_events.record(
             "inventory",
@@ -607,7 +600,12 @@ class WorkspaceInventoryService:
 
     def find_workspace_by_path(self, path: str) -> WorkspaceInfo | None:
         normalized = os.path.normpath(os.path.abspath(path))
-        for workspace in self._list_workspaces_from_db() if self.source_mode == "database" else self._workspaces.values():
+        source_workspaces = (
+            self._list_workspaces_from_db()
+            if self.source_mode == "database"
+            else self._workspaces.values()
+        )
+        for workspace in source_workspaces:
             if os.path.normpath(os.path.abspath(workspace.path)) == normalized:
                 return workspace
         return None
@@ -615,9 +613,7 @@ class WorkspaceInventoryService:
     def rescan(self, roots: list[str] | None = None) -> InventoryResponse:
         """Rescan filesystem roots and refresh inventory entries."""
         scan_roots = roots or self.workspace_roots
-        events.operation_events.record(
-            "inventory", "rescan", "started", {"roots": scan_roots}
-        )
+        events.operation_events.record("inventory", "rescan", "started", {"roots": scan_roots})
 
         try:
             discovered_repositories: dict[str, RepositoryInfo] = {}
@@ -668,9 +664,7 @@ class WorkspaceInventoryService:
             )
             return inventory
         except Exception as exc:
-            events.operation_events.record(
-                "inventory", "rescan", "failed", {"error": str(exc)}
-            )
+            events.operation_events.record("inventory", "rescan", "failed", {"error": str(exc)})
             raise InventoryError(f"Failed to rescan inventory: {exc}") from exc
 
     def _scan_filesystem(self, roots: list[str] | None = None) -> None:
@@ -692,9 +686,7 @@ class WorkspaceInventoryService:
         """Discover and register a repository from filesystem."""
         repo_id = self._generate_id(str(repo_path))
         git_dir = self._resolve_git_dir(repo_path)
-        last_fetched_at, last_commit_at = self._get_repository_timestamps(
-            repo_path, git_dir
-        )
+        last_fetched_at, last_commit_at = self._get_repository_timestamps(repo_path, git_dir)
 
         if git_dir is None or not self._is_valid_git_repo(repo_path):
             self._repositories[repo_id] = RepositoryInfo(
@@ -829,8 +821,7 @@ class WorkspaceInventoryService:
         try:
             content = config_path.read_text()
             # Simple regex to find origin URL
-            match = re.search(
-                r'\[remote "origin"\][^\[]*url\s*=\s*(.+)', content)
+            match = re.search(r'\[remote "origin"\][^\[]*url\s*=\s*(.+)', content)
             if match:
                 return match.group(1).strip()
         except OSError:
@@ -874,9 +865,7 @@ class WorkspaceInventoryService:
     ) -> tuple[str | None, str | None]:
         if git_dir is None:
             return None, None
-        return self._parse_last_fetched_at(git_dir), self._parse_last_commit_at(
-            repo_path, git_dir
-        )
+        return self._parse_last_fetched_at(git_dir), self._parse_last_commit_at(repo_path, git_dir)
 
     def _parse_last_fetched_at(self, git_dir: Path) -> str | None:
         fetch_head = git_dir / "FETCH_HEAD"
@@ -938,16 +927,12 @@ class WorkspaceInventoryService:
             return None
         return head_updated_at.isoformat()
 
-    def _with_refreshed_repository_timestamps(
-        self, repo: RepositoryInfo
-    ) -> RepositoryInfo:
+    def _with_refreshed_repository_timestamps(self, repo: RepositoryInfo) -> RepositoryInfo:
         repo_path = Path(repo.root_path)
         if not repo_path.exists():
             return repo
         git_dir = self._resolve_git_dir(repo_path)
-        last_fetched_at, last_commit_at = self._get_repository_timestamps(
-            repo_path, git_dir
-        )
+        last_fetched_at, last_commit_at = self._get_repository_timestamps(repo_path, git_dir)
         return RepositoryInfo(
             repository_id=repo.repository_id,
             name=repo.name,
@@ -1043,9 +1028,7 @@ class WorkspaceInventoryService:
                 raise InventoryError("Workspace name cannot be empty")
         else:
             timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-            candidate_name = (
-                f"{self._slugify(repository.name)}-{self._slugify(branch)}-{timestamp}"
-            )
+            candidate_name = f"{self._slugify(repository.name)}-{self._slugify(branch)}-{timestamp}"
 
         destination = (worktrees_root / candidate_name).resolve()
         root_resolved = worktrees_root.resolve()
@@ -1154,9 +1137,7 @@ class WorkspaceInventoryService:
                 for row in connection.execute("PRAGMA table_info(repositories)").fetchall()
             }
             if "last_fetched_at" not in repo_columns:
-                connection.execute(
-                    "ALTER TABLE repositories ADD COLUMN last_fetched_at TEXT"
-                )
+                connection.execute("ALTER TABLE repositories ADD COLUMN last_fetched_at TEXT")
             if "last_commit_at" not in repo_columns:
                 connection.execute("ALTER TABLE repositories ADD COLUMN last_commit_at TEXT")
             workspace_columns = {

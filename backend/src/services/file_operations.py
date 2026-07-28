@@ -9,7 +9,9 @@ def _resolve_workspace_path(workspace_root: str, path: str) -> str:
     normalized_workspace_root = os.path.abspath(workspace_root)
     if not os.path.isdir(normalized_workspace_root):
         raise OperationError("Workspace path missing")
-    if full != normalized_workspace_root and not full.startswith(normalized_workspace_root + os.sep):
+    if full != normalized_workspace_root and not full.startswith(
+        normalized_workspace_root + os.sep
+    ):
         raise OperationError("Path escapes workspace")
     return full
 

@@ -3,6 +3,7 @@
 Implements endpoints per docs/specs/ui/webui.md and docs/specs/ui/ux.md.
 All HTML rendering is handled by the frontend SPA.
 """
+
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
@@ -31,10 +32,12 @@ def _get_dashboard_data() -> DashboardResponse:
 
     # Calculate counts
     stale_count = sum(
-        1 for r in inventory.repositories
+        1
+        for r in inventory.repositories
         if r.status in ("stale", "missing_path", "invalid_git_metadata")
     ) + sum(
-        1 for w in inventory.workspaces
+        1
+        for w in inventory.workspaces
         if w.status in ("stale", "missing_path", "invalid_git_metadata")
     )
 
@@ -130,9 +133,7 @@ def fetch_repository(repository_id: str) -> RepositoryInfo:
 
 
 @router.patch("/repositories/{repository_id}", response_model=RepositoryInfo)
-def rename_repository(
-    repository_id: str, request: RepositoryRenameRequest
-) -> RepositoryInfo:
+def rename_repository(repository_id: str, request: RepositoryRenameRequest) -> RepositoryInfo:
     """Rename a repository display name."""
     try:
         return inventory_service.rename_repository(repository_id, request.name)
@@ -173,9 +174,7 @@ def remove_workspace(workspace_id: str) -> dict[str, bool]:
 
 
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceInfo)
-def rename_workspace(
-    workspace_id: str, request: WorkspaceRenameRequest
-) -> WorkspaceInfo:
+def rename_workspace(workspace_id: str, request: WorkspaceRenameRequest) -> WorkspaceInfo:
     """Rename a workspace display name."""
     try:
         return inventory_service.rename_workspace(workspace_id, request.workspace_name)

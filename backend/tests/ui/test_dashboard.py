@@ -3,6 +3,7 @@
 Test IDs map to spec requirements in docs/specs/ui/ux.md section 3.1.
 All tests use /api/v1 prefix per API versioning.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -71,9 +72,7 @@ class TestDashboardEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/dashboard")
 
         assert resp.status_code == 200
@@ -98,9 +97,7 @@ class TestDashboardEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/dashboard")
 
         data = resp.json()
@@ -131,9 +128,7 @@ class TestDashboardEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/dashboard")
 
         data = resp.json()
@@ -165,9 +160,7 @@ class TestDashboardEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/dashboard")
 
         data = resp.json()
@@ -197,9 +190,7 @@ class TestInventoryEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/inventory")
 
         assert resp.status_code == 200

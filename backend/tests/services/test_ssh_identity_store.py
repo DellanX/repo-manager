@@ -40,7 +40,10 @@ def test_t_ssh_identity_create_and_use(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert for_use.identity_file == identity.identity_file
 
 
-def test_t_ssh_identity_host_mismatch_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_t_ssh_identity_host_mismatch_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     """T-SSH-IDENTITY-HOST-MISMATCH"""
     ssh_root = tmp_path / "ssh"
 

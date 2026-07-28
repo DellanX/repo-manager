@@ -18,7 +18,10 @@ def test_t_rest_health_200(client) -> None:
 
 def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CLONE-200"""
-    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -36,7 +39,10 @@ def test_t_rest_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_rest_clone_with_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-CLONE-DEST-200"""
     called = {}
-    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -80,7 +86,10 @@ def test_t_rest_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyP
         "src.api.rest.credential_store.get_credential_for_use",
         lambda credential_id, url: DummyCredential(),
     )
-    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -124,7 +133,10 @@ def test_t_rest_clone_with_ssh_identity_id_200(client, monkeypatch: pytest.Monke
         "src.api.rest.ssh_identity_store.get_identity_for_use",
         lambda identity_id, url: DummyIdentity(),
     )
-    monkeypatch.setattr("src.api.rest.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.rest.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.rest.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -226,8 +238,14 @@ def test_t_rest_file_get_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_rest_file_post_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-FILE-POST-200"""
     _mock_workspace_lookup(monkeypatch)
-    monkeypatch.setattr("src.api.rest.write_file", lambda path, content, workspace_root: {"status": "ok"})
-    resp = client.post("/api/v1/file", json={"workspace_id": "ws-1", "path": "a.txt", "content": "x"})
+    monkeypatch.setattr(
+        "src.api.rest.write_file",
+        lambda path, content, workspace_root: {"status": "ok"},
+    )
+    resp = client.post(
+        "/api/v1/file",
+        json={"workspace_id": "ws-1", "path": "a.txt", "content": "x"},
+    )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -258,7 +276,12 @@ def test_t_rest_file_get_missing_maps_404(client, monkeypatch: pytest.MonkeyPatc
 def test_t_rest_operation_error_maps_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-REST-OP-ERROR-400"""
 
-    def fail(url: str, destination: str | None = None, credential=None, ssh_identity_file=None) -> str:
+    def fail(
+        url: str,
+        destination: str | None = None,
+        credential=None,
+        ssh_identity_file=None,
+    ) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.rest.clone_repo", fail)

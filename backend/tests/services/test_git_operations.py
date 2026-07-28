@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import pytest
 from src.core import events
-from src.services.credential_store import CredentialForUse
 from src.services import git_operations
+from src.services.credential_store import CredentialForUse
 from src.services.git_operations import OperationError
 
 
@@ -82,7 +82,9 @@ def test_t_git_clone_runs_in_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured["cwd"] == git_operations.WORKSPACE
 
 
-def test_t_git_clone_with_credential_uses_authenticated_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_t_git_clone_with_credential_uses_authenticated_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """T-GIT-CLONE-CREDENTIAL-URL"""
     captured = {}
 
@@ -102,14 +104,22 @@ def test_t_git_clone_with_credential_uses_authenticated_url(monkeypatch: pytest.
         ),
     )
 
-    assert captured["cmd"] == ["git", "clone", "https://oauth2:abc123@gitlab.com/group/repo.git"]
+    assert captured["cmd"] == [
+        "git",
+        "clone",
+        "https://oauth2:abc123@gitlab.com/group/repo.git",
+    ]
 
 
 def test_t_git_clone_redacts_secret_from_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """T-GIT-CLONE-SECRET-REDACT"""
 
     def fake_run(cmd, cwd=None, capture_output=True, text=True, env=None):
-        return DummyCompleted(1, "", "fatal: https://oauth2:abc123@gitlab.com/group/repo.git not found")
+        return DummyCompleted(
+            1,
+            "",
+            "fatal: https://oauth2:abc123@gitlab.com/group/repo.git not found",
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(OperationError) as exc_info:
@@ -126,7 +136,9 @@ def test_t_git_clone_redacts_secret_from_errors(monkeypatch: pytest.MonkeyPatch)
     assert "abc123" not in str(exc_info.value)
 
 
-def test_t_git_clone_with_ssh_identity_sets_git_ssh_command(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_t_git_clone_with_ssh_identity_sets_git_ssh_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """T-GIT-CLONE-SSH-IDENTITY-ENV"""
     captured = {}
 

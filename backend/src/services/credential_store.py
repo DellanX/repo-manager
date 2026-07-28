@@ -89,7 +89,9 @@ class KeyringSecretDriver(SecretDriver):
         except NoKeyringError as exc:
             raise CredentialStoreError("No secure keyring backend is available") from exc
         except KeyringError as exc:
-            raise CredentialStoreError("Failed to delete credential secret from secure storage") from exc
+            raise CredentialStoreError(
+                "Failed to delete credential secret from secure storage"
+            ) from exc
 
 
 class InMemorySecretDriver(SecretDriver):
@@ -339,7 +341,8 @@ class CredentialStoreService:
             conn.execute(
                 """
                 INSERT INTO credentials (
-                    credential_id, name, provider, host, username, created_at, updated_at, revoked_at
+                    credential_id, name, provider, host, username, created_at,
+                    updated_at, revoked_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -358,7 +361,11 @@ class CredentialStoreService:
             "credentials",
             "create",
             "completed",
-            {"credential_id": metadata.credential_id, "provider": metadata.provider, "host": metadata.host},
+            {
+                "credential_id": metadata.credential_id,
+                "provider": metadata.provider,
+                "host": metadata.host,
+            },
         )
         return metadata
 

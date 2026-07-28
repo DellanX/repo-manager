@@ -36,7 +36,10 @@ def test_t_mcp_tools_lists_registry(client) -> None:
 
 def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-200"""
-    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -54,7 +57,10 @@ def test_t_mcp_git_clone_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-DEST-200"""
     captured = {}
-    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -86,7 +92,10 @@ def test_t_mcp_git_clone_destination_200(client, monkeypatch: pytest.MonkeyPatch
 def test_t_mcp_git_clone_with_credential_id_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-CREDENTIAL-ID-200"""
     captured = {}
-    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -128,7 +137,10 @@ def test_t_mcp_git_clone_with_credential_id_200(client, monkeypatch: pytest.Monk
 def test_t_mcp_git_clone_with_ssh_identity_id_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-GIT-CLONE-SSH-IDENTITY-ID-200"""
     captured = {}
-    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/tmp/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/tmp/repo",
+    )
     monkeypatch.setattr(
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -159,7 +171,13 @@ def test_t_mcp_git_clone_with_ssh_identity_id_200(client, monkeypatch: pytest.Mo
     monkeypatch.setattr("src.api.mcp.clone_repo", fake_clone)
     resp = client.post(
         "/api/v1/mcp/call",
-        json={"tool": "git.clone", "args": {"url": "git@gitlab.com:group/repo.git", "ssh_identity_id": "ssh-1"}},
+        json={
+            "tool": "git.clone",
+            "args": {
+                "url": "git@gitlab.com:group/repo.git",
+                "ssh_identity_id": "ssh-1",
+            },
+        },
     )
     assert resp.status_code == 200
     assert captured["credential"] is None
@@ -178,7 +196,10 @@ def test_t_mcp_push_defaults(client, monkeypatch: pytest.MonkeyPatch) -> None:
         return "ok"
 
     monkeypatch.setattr("src.api.mcp.push", fake_push)
-    resp = client.post("/api/v1/mcp/call", json={"tool": "git.push", "args": {"workspace_id": "ws-1"}})
+    resp = client.post(
+        "/api/v1/mcp/call",
+        json={"tool": "git.push", "args": {"workspace_id": "ws-1"}},
+    )
     assert resp.status_code == 200
     assert called == {"workspace_root": "/workspace/ws-1", "remote": "origin", "branch": "main"}
 
@@ -200,7 +221,12 @@ def test_t_mcp_missing_argument_400(client) -> None:
 def test_t_mcp_operation_error_400(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-OP-ERROR-400"""
 
-    def fail(url: str, destination: str | None = None, credential=None, ssh_identity_file=None) -> str:
+    def fail(
+        url: str,
+        destination: str | None = None,
+        credential=None,
+        ssh_identity_file=None,
+    ) -> str:
         raise OperationError("boom")
 
     monkeypatch.setattr("src.api.mcp.clone_repo", fail)
@@ -234,13 +260,19 @@ def test_t_mcp_clone_registers_inventory(client, monkeypatch: pytest.MonkeyPatch
     assert captured == {"root_path": "/workspace/repo-manager-copy", "origin_url": "u"}
 
 
-def test_t_mcp_clone_returns_workspace_id_when_available(client, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_t_mcp_clone_returns_workspace_id_when_available(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """T-MCP-CLONE-WORKSPACE-ID-200"""
     monkeypatch.setattr(
         "src.api.mcp.clone_repo",
         lambda url, destination=None, credential=None, ssh_identity_file=None: "ok",
     )
-    monkeypatch.setattr("src.api.mcp.resolve_clone_target", lambda url, destination=None: "/workspace/repo")
+    monkeypatch.setattr(
+        "src.api.mcp.resolve_clone_target",
+        lambda url, destination=None: "/workspace/repo",
+    )
     monkeypatch.setattr(
         "src.api.mcp.inventory_service.register_cloned_repository",
         lambda root_path, origin_url: None,
@@ -306,7 +338,10 @@ def test_t_mcp_read_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_t_mcp_write_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-WRITE-FILE-200"""
     _mock_workspace_lookup(monkeypatch)
-    monkeypatch.setattr("src.api.mcp.write_file", lambda path, content, workspace_root: {"status": "ok"})
+    monkeypatch.setattr(
+        "src.api.mcp.write_file",
+        lambda path, content, workspace_root: {"status": "ok"},
+    )
     resp = client.post(
         "/api/v1/mcp/call",
         json={
@@ -358,7 +393,10 @@ def test_t_mcp_workspace_read_file_200(client, monkeypatch: pytest.MonkeyPatch) 
 def test_t_mcp_workspace_write_file_200(client, monkeypatch: pytest.MonkeyPatch) -> None:
     """T-MCP-WORKSPACE-WRITE-200"""
     _mock_workspace_lookup(monkeypatch)
-    monkeypatch.setattr("src.api.mcp.write_file", lambda path, content, workspace_root: {"status": "ok"})
+    monkeypatch.setattr(
+        "src.api.mcp.write_file",
+        lambda path, content, workspace_root: {"status": "ok"},
+    )
     resp = client.post(
         "/api/v1/mcp/call",
         json={
@@ -510,7 +548,10 @@ def test_t_mcp_ssh_identities_create_200(client, monkeypatch: pytest.MonkeyPatch
     )
     resp = client.post(
         "/api/v1/mcp/call",
-        json={"tool": "ssh_identities.create", "args": {"name": "GitLab Key", "host": "gitlab.com"}},
+        json={
+            "tool": "ssh_identities.create",
+            "args": {"name": "GitLab Key", "host": "gitlab.com"},
+        },
     )
     assert resp.status_code == 200
     assert resp.json()["result"]["identity_id"] == "ssh-1"

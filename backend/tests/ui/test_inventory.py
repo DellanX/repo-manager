@@ -2,6 +2,7 @@
 
 Test IDs map to spec requirements in docs/specs/ui/webui.md section 8.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -112,8 +113,7 @@ class TestInventorySchemas:
 
     def test_status_values_explicit(self) -> None:
         """T-UI-INV-STATUS: Status values are explicit enumerated values."""
-        valid_statuses = ["ready", "missing_path",
-                          "invalid_git_metadata", "stale"]
+        valid_statuses = ["ready", "missing_path", "invalid_git_metadata", "stale"]
         for status in valid_statuses:
             repo = RepositoryInfo(
                 repository_id="repo-1",
@@ -157,9 +157,7 @@ class TestWorkspaceInventoryService:
 
     def test_database_mode_inventory_listing(self, tmp_path: Path) -> None:
         """T-UI-INV-DB-LIST: Database mode returns managed repositories and workspaces."""
-        service = WorkspaceInventoryService(
-            source_mode="database", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="database", workspace_roots=[str(tmp_path)])
         # Add test data
         service.add_repository(
             repository_id="repo-1",
@@ -209,9 +207,7 @@ class TestWorkspaceInventoryService:
         repo_ids = [repo.repository_id for repo in inventory.repositories]
         assert "repo-persisted" in repo_ids
 
-    def test_database_mode_backfills_repo_timestamps_for_legacy_rows(
-        self, tmp_path: Path
-    ) -> None:
+    def test_database_mode_backfills_repo_timestamps_for_legacy_rows(self, tmp_path: Path) -> None:
         """Legacy DB rows with null timestamps are refreshed from local git metadata."""
         db_path = tmp_path / "inventory.sqlite3"
         repo_path = tmp_path / "legacy-repo"
@@ -229,9 +225,7 @@ class TestWorkspaceInventoryService:
             + "1" * 40
             + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
         )
-        (git_dir / "logs" / "HEAD").write_text(
-            commit_log_line
-        )
+        (git_dir / "logs" / "HEAD").write_text(commit_log_line)
         (git_dir / "FETCH_HEAD").write_text("fetch data")
 
         WorkspaceInventoryService(
@@ -273,17 +267,13 @@ class TestWorkspaceInventoryService:
             inventory_db_path=str(db_path),
         )
         inventory = reader.get_inventory()
-        repo = next(
-            r for r in inventory.repositories if r.repository_id == "repo-legacy"
-        )
+        repo = next(r for r in inventory.repositories if r.repository_id == "repo-legacy")
         assert repo.last_fetched_at is not None
         assert repo.last_commit_at is not None
 
     def test_stale_detection_missing_path(self, tmp_path: Path) -> None:
         """T-UI-INV-STALE: Missing path is marked as stale/missing_path."""
-        service = WorkspaceInventoryService(
-            source_mode="database", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="database", workspace_roots=[str(tmp_path)])
         # Add repository with non-existent path
         service.add_repository(
             repository_id="repo-missing",
@@ -299,9 +289,7 @@ class TestWorkspaceInventoryService:
 
     def test_register_cloned_repository_adds_entry(self, tmp_path: Path) -> None:
         """T-UI-INV-CLONE-REGISTER: Cloned repository is registered in database mode."""
-        service = WorkspaceInventoryService(
-            source_mode="database", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="database", workspace_roots=[str(tmp_path)])
 
         clone_path = tmp_path / "repo-manager-copy"
         clone_path.mkdir()
@@ -325,7 +313,7 @@ class TestWorkspaceInventoryService:
         git_dir.mkdir()
         (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
         (git_dir / "config").write_text(
-            "[remote \"origin\"]\n\turl = https://github.com/test/repo.git\n"
+            '[remote "origin"]\n\turl = https://github.com/test/repo.git\n'
         )
         (git_dir / "logs").mkdir()
         commit_log_line = (
@@ -334,9 +322,7 @@ class TestWorkspaceInventoryService:
             + "1" * 40
             + " Test User <test@example.com> 1720000000 +0000\tcommit: test\n"
         )
-        (git_dir / "logs" / "HEAD").write_text(
-            commit_log_line
-        )
+        (git_dir / "logs" / "HEAD").write_text(commit_log_line)
         (git_dir / "FETCH_HEAD").write_text("fetch data")
 
         service = WorkspaceInventoryService(
@@ -351,9 +337,7 @@ class TestWorkspaceInventoryService:
         assert found[0].last_fetched_at is not None
         assert found[0].last_commit_at is not None
 
-    def test_database_mode_bootstraps_from_filesystem_when_empty(
-        self, tmp_path: Path
-    ) -> None:
+    def test_database_mode_bootstraps_from_filesystem_when_empty(self, tmp_path: Path) -> None:
         """T-UI-INV-DB-BOOTSTRAP: Empty database mode can discover existing clones."""
         repo_path = tmp_path / "existing-repo"
         repo_path.mkdir()
@@ -361,12 +345,10 @@ class TestWorkspaceInventoryService:
         git_dir.mkdir()
         (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
         (git_dir / "config").write_text(
-            "[remote \"origin\"]\n\turl = https://github.com/test/existing-repo.git\n"
+            '[remote "origin"]\n\turl = https://github.com/test/existing-repo.git\n'
         )
 
-        service = WorkspaceInventoryService(
-            source_mode="database", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="database", workspace_roots=[str(tmp_path)])
         inventory = service.get_inventory()
 
         assert len(inventory.repositories) == 1
@@ -398,13 +380,16 @@ class TestWorkspaceInventoryService:
         refs_dir.mkdir(parents=True)
         (refs_dir / "test").write_text("1234567890abcdef1234567890abcdef12345678\n")
         (git_meta / "config").write_text(
-            "[remote \"origin\"]\n\turl = https://github.com/test/linked-worktree.git\n"
+            '[remote "origin"]\n\turl = https://github.com/test/linked-worktree.git\n'
         )
 
-        service = WorkspaceInventoryService(source_mode="filesystem", workspace_roots=[
-            str(repos_root),
-            str(worktrees_root),
-        ])
+        service = WorkspaceInventoryService(
+            source_mode="filesystem",
+            workspace_roots=[
+                str(repos_root),
+                str(worktrees_root),
+            ],
+        )
         inventory = service.get_inventory()
 
         repo_entries = [r for r in inventory.repositories if r.name == "primary-repo"]
@@ -662,9 +647,7 @@ class TestInventoryEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/inventory")
 
         assert resp.status_code == 200
@@ -688,9 +671,7 @@ class TestInventoryEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/inventory")
 
         data = resp.json()
@@ -923,9 +904,7 @@ class TestInventoryEndpoint:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-        with patch(
-            "src.api.ui.inventory_service.get_inventory", return_value=mock_inventory
-        ):
+        with patch("src.api.ui.inventory_service.get_inventory", return_value=mock_inventory):
             resp = client.get("/api/v1/ui/inventory")
 
         data = resp.json()
@@ -946,12 +925,9 @@ class TestInventoryObservability:
 
         events.operation_events = events.OperationEventStore()
 
-        service = WorkspaceInventoryService(
-            source_mode="database", workspace_roots=[str(tmp_path)]
-        )
+        service = WorkspaceInventoryService(source_mode="database", workspace_roots=[str(tmp_path)])
         service.get_inventory()
 
         all_events = events.operation_events.list_since(0)
-        inventory_events = [
-            e for e in all_events if "inventory" in e.operation]
+        inventory_events = [e for e in all_events if "inventory" in e.operation]
         assert len(inventory_events) >= 1

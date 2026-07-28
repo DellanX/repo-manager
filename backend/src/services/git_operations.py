@@ -1,6 +1,6 @@
+import os
 import shlex
 import subprocess
-import os
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -120,7 +120,9 @@ def clone_repo(
     if ssh_identity_file is not None:
         env = os.environ.copy()
         env["GIT_SSH_COMMAND"] = (
-            f'ssh -i "{ssh_identity_file}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+            f'ssh -i "{ssh_identity_file}" '
+            "-o IdentitiesOnly=yes "
+            "-o StrictHostKeyChecking=accept-new"
         )
     cmd = ["git", "clone", clone_url]
     if resolved_destination:

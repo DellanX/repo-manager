@@ -19,8 +19,8 @@ from src.services.git_operations import (
     push,
     resolve_clone_target,
 )
-from src.services.workspace_inventory import InventoryError, inventory_service
 from src.services.ssh_identity_store import SSHIdentityStoreError, ssh_identity_store
+from src.services.workspace_inventory import InventoryError, inventory_service
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -54,7 +54,12 @@ def _clone(args: dict[str, Any]) -> dict[str, str]:
     if "ssh_identity_id" in args:
         identity = ssh_identity_store.get_identity_for_use(str(args["ssh_identity_id"]), url)
         ssh_identity_file = identity.identity_file
-    output = clone_repo(url, destination_value, credential=credential, ssh_identity_file=ssh_identity_file)
+    output = clone_repo(
+        url,
+        destination_value,
+        credential=credential,
+        ssh_identity_file=ssh_identity_file,
+    )
     clone_target = resolve_clone_target(url, destination_value)
     inventory_service.register_cloned_repository(
         root_path=clone_target,
@@ -187,9 +192,15 @@ TOOLS: dict[str, dict[str, Any]] = {
     "workspace.exec": {"fn": _exec, "description": "Execute a command in workspace"},
     "credentials.list": {"fn": _credential_list, "description": "List credential metadata"},
     "credentials.create": {"fn": _credential_create, "description": "Create a secure credential"},
-    "credentials.update": {"fn": _credential_update, "description": "Update or rotate a credential"},
+    "credentials.update": {
+        "fn": _credential_update,
+        "description": "Update or rotate a credential",
+    },
     "credentials.revoke": {"fn": _credential_revoke, "description": "Revoke a credential"},
-    "credentials.drivers": {"fn": _credential_drivers, "description": "List secret storage drivers"},
+    "credentials.drivers": {
+        "fn": _credential_drivers,
+        "description": "List secret storage drivers",
+    },
     "ssh_identities.list": {"fn": _ssh_identity_list, "description": "List SSH identities"},
     "ssh_identities.create": {"fn": _ssh_identity_create, "description": "Create SSH identity"},
     "ssh_identities.revoke": {"fn": _ssh_identity_revoke, "description": "Revoke SSH identity"},

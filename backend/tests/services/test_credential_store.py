@@ -57,7 +57,9 @@ def test_t_credentials_get_for_use_host_match_required(service: CredentialStoreS
         secret="token-value",
     )
 
-    resolved = service.get_credential_for_use(created.credential_id, "https://dev.azure.com/org/project/_git/repo")
+    resolved = service.get_credential_for_use(
+        created.credential_id, "https://dev.azure.com/org/project/_git/repo"
+    )
     assert resolved.secret == "token-value"
 
     with pytest.raises(CredentialStoreError, match="host does not match"):
@@ -91,7 +93,13 @@ def test_t_credentials_update_rotates_secret(service: CredentialStoreService) ->
         secret="old-token",
     )
 
-    updated = service.update_credential(created.credential_id, name="GitLab PAT 2", secret="new-token")
+    updated = service.update_credential(
+        created.credential_id,
+        name="GitLab PAT 2",
+        secret="new-token",
+    )
     assert updated.name == "GitLab PAT 2"
-    resolved = service.get_credential_for_use(created.credential_id, "https://gitlab.com/group/repo.git")
+    resolved = service.get_credential_for_use(
+        created.credential_id, "https://gitlab.com/group/repo.git"
+    )
     assert resolved.secret == "new-token"

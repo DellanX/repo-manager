@@ -6,10 +6,10 @@ from src.models.schemas import (
     CommitRequest,
     CredentialCreateRequest,
     CredentialResponse,
-    SecretDriverResponse,
     CredentialUpdateRequest,
     ExecRequest,
     PushRequest,
+    SecretDriverResponse,
     SSHIdentityCreateRequest,
     SSHIdentityResponse,
     WriteFileRequest,
@@ -158,7 +158,10 @@ def create_credential_route(request: CredentialCreateRequest) -> CredentialRespo
 
 
 @router.put("/credentials/{credential_id}")
-def update_credential_route(credential_id: str, request: CredentialUpdateRequest) -> CredentialResponse:
+def update_credential_route(
+    credential_id: str,
+    request: CredentialUpdateRequest,
+) -> CredentialResponse:
     try:
         metadata = credential_store.update_credential(
             credential_id,
