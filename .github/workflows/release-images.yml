@@ -20,9 +20,6 @@ jobs:
           - image: backend
             image_suffix: -backend
             target: fastapi
-          - image: frontend
-            image_suffix: -frontend
-            target: frontend
           - image: hybrid
             image_suffix: ''
             target: combo
