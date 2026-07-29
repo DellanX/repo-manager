@@ -46,24 +46,14 @@ CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port",
 
 
 # --------------------------
-# Frontend production image
-# --------------------------
-FROM nginx:1.27-alpine AS frontend
-
-COPY --from=frontend-build /app/frontend/dist/ /usr/share/nginx/html/
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
-
-
-# --------------------------
 # Combined production image
 # --------------------------
 FROM fastapi-base AS combo
 
 # Include built frontend assets for combined deployments.
 COPY --from=frontend-build /app/frontend/dist/ /app/frontend-dist/
+
+ENV FRONTEND_DIST_DIR=/app/frontend-dist
 
 EXPOSE 8888
 

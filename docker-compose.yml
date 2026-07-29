@@ -1,0 +1,15 @@
+# Example Docker Compose or Portainer Stack
+version: "3.9"
+
+services:
+  combo:
+    image: ghcr.io/dellanx/repo-manager:latest
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:cached
+    environment:
+      REPO_MANAGER_WORKSPACE: /workspace
+      PYTHONPATH: /workspace/backend/src
+    ports:
+      - "8888:8888"
+      - "5173:5173"
