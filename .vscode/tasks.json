@@ -2,16 +2,30 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Install Python dependencies",
+      "label": "Install All Dependencies",
       "type": "shell",
-      "command": "python -m pip install --no-cache-dir -r requirements.txt",
+      "command": "make install",
       "group": "build",
       "problemMatcher": []
     },
     {
-      "label": "Run API (uvicorn)",
+      "label": "Install Backend Dependencies",
       "type": "shell",
-      "command": "python -m uvicorn src.server:app --host 0.0.0.0 --port 8000 --reload",
+      "command": "cd backend && python -m pip install -r requirements.txt && pip install -e .",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Install Frontend Dependencies",
+      "type": "shell",
+      "command": "cd frontend && npm install",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Backend (uvicorn)",
+      "type": "shell",
+      "command": "cd backend && python -m uvicorn src.server:app --host 0.0.0.0 --port 8888 --reload",
       "isBackground": true,
       "problemMatcher": {
         "owner": "custom",
@@ -32,10 +46,54 @@
       }
     },
     {
-      "label": "Lint Python (ruff)",
+      "label": "Run Frontend (Vite)",
       "type": "shell",
-      "command": "python -m ruff check src tests",
+      "command": "cd frontend && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "Lint Backend (ruff)",
+      "type": "shell",
+      "command": "cd backend && python -m ruff check src tests",
       "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint Frontend (eslint)",
+      "type": "shell",
+      "command": "cd frontend && npm run lint",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test Backend",
+      "type": "shell",
+      "command": "cd backend && pytest",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test Frontend",
+      "type": "shell",
+      "command": "cd frontend && npm run test:unit",
+      "group": "test",
       "problemMatcher": []
     }
   ]

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug FastAPI (uvicorn)",
+      "name": "Backend (FastAPI)",
       "type": "python",
       "request": "launch",
       "module": "uvicorn",
@@ -11,16 +11,33 @@
         "--host",
         "0.0.0.0",
         "--port",
-        "8000",
+        "8888",
         "--reload"
       ],
-      "cwd": "${workspaceFolder}",
+      "cwd": "${workspaceFolder}/backend",
       "env": {
-        "REPO_MANAGER_WORKSPACE": "${workspaceFolder}"
+        "REPO_MANAGER_WORKSPACE": "${workspaceFolder}",
+        "PYTHONPATH": "${workspaceFolder}/backend"
       },
       "jinja": true,
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "Frontend (Vite)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Backend + Frontend)",
+      "configurations": ["Backend (FastAPI)", "Frontend (Vite)"],
+      "stopAll": true
     }
   ]
 }

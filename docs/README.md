@@ -23,6 +23,7 @@ This directory is the source of truth for architecture, feature contracts, secur
 - `src/services/*` -> `specs/services/*`
 - `src/core/*` -> `specs/core/*`
 - `src/models/*` -> `specs/models/*`
+- `src/ui/*` -> `specs/ui/*` (planned)
 
 ## Change Policy
 

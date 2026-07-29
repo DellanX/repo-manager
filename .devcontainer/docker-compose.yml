@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  combo:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: combo-dev
+    image: repo-manager-combo:dev
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:cached
+    environment:
+      REPO_MANAGER_WORKSPACE: /workspace
+      PYTHONPATH: /workspace/backend/src
+    ports:
+      - "8888:8888"
+      - "5173:5173"

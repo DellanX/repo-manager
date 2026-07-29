@@ -6,13 +6,13 @@ Source: `src/api/rest.py`
 
 | Method | Path | Request | Response | Errors |
 |--------|------|---------|----------|--------|
-| POST | /clone | `{ url }` | `{ output }` | 400 |
-| POST | /checkout | `{ branch }` | `{ output }` | 400 |
-| POST | /commit | `{ message }` | `{ output }` | 400 |
-| POST | /push | `{ remote?, branch? }` | `{ output }` | 400 |
-| GET | /file | `?path=` | `{ content }` | 400, 404 |
-| POST | /file | `{ path, content }` | `{ status }` | 400 |
-| POST | /exec | `{ cmd }` | `{ output }` | 400 |
+| POST | /clone | `{ url, destination?, credential_id?, ssh_identity_id? }` | `{ output, workspace_id? }` | 400 |
+| POST | /checkout | `{ workspace_id, branch }` | `{ output }` | 400 |
+| POST | /commit | `{ workspace_id, message }` | `{ output }` | 400 |
+| POST | /push | `{ workspace_id, remote?, branch? }` | `{ output }` | 400 |
+| GET | /file | `?workspace_id=&path=` | `{ content }` | 400, 404 |
+| POST | /file | `{ workspace_id, path, content }` | `{ status }` | 400 |
+| POST | /exec | `{ workspace_id, cmd }` | `{ output }` | 400 |
 | GET | /health | — | `{ status }` | — |
 
 Defaults: `remote='origin'`, `branch='main'`
@@ -27,3 +27,4 @@ Target: `{ ok: false, error: { code, message } }`
 - Handlers call service-layer only.
 - Path handling per [security_baseline.md](../security/security_baseline.md).
 - Typed boundaries per [linting/typed_boundaries.md](../linting/typed_boundaries.md).
+- Runtime operations are workspace-scoped; callers must provide `workspace_id`.
