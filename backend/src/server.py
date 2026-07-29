@@ -69,7 +69,6 @@ if SERVE_FRONTEND:
     def frontend_root() -> FileResponse:
         return FileResponse(FRONTEND_INDEX)
 
-
     @app.get("/{path:path}", include_in_schema=False)
     def frontend_spa(path: str) -> FileResponse:
         # Keep backend routes and docs returning backend 404s instead of SPA index.
@@ -81,5 +80,3 @@ if SERVE_FRONTEND:
             return FileResponse(candidate)
 
         return FileResponse(FRONTEND_INDEX)
-
-
