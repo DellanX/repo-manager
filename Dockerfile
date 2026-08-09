@@ -37,6 +37,16 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 
 # --------------------------
+# fastapi: Backend only (no SSH server) - for container deployments
+# --------------------------
+FROM backend-base AS fastapi
+
+EXPOSE 8888
+
+CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port", "8888"]
+
+
+# --------------------------
 # backend-lite: Backend only (no SSH server)
 # --------------------------
 FROM backend-base AS backend-lite
