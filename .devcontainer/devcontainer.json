@@ -6,7 +6,6 @@
     "combo"
   ],
   "remoteUser": "vscode",
-  "containerUser": "1000:1000", 
   "workspaceFolder": "/workspace",
   "containerEnv": {
     "REPO_MANAGER_WORKSPACE": "/workspace",
