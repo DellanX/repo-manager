@@ -13,9 +13,9 @@ RUN npm run build
 
 
 # --------------------------
-# FastAPI runtime base
+# Backend base (Python + dependencies)
 # --------------------------
-FROM python:3.11-slim AS fastapi-base
+FROM python:3.11-slim AS backend-base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -35,10 +35,11 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r /app/backend/requirements.txt \
     && python -m pip install --no-cache-dir -e /app/backend
 
+
 # --------------------------
-# FastAPI image
+# backend-lite: Backend only (no SSH server)
 # --------------------------
-FROM fastapi-base AS fastapi
+FROM backend-base AS backend-lite
 
 EXPOSE 8888
 
@@ -46,16 +47,30 @@ CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port",
 
 
 # --------------------------
-# Combined production image
+# backend: Backend + SSH server
 # --------------------------
-FROM fastapi-base AS combo
+FROM backend-base AS backend
 
-# Include built frontend assets for combined deployments.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-server \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd
+
+EXPOSE 8888 22
+
+CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port", "8888"]
+
+
+# --------------------------
+# Default: Backend + SSH server + Frontend
+# --------------------------
+FROM backend AS default
+
 COPY --from=frontend-build /app/frontend/dist/ /app/frontend-dist/
 
 ENV FRONTEND_DIST_DIR=/app/frontend-dist
 
-EXPOSE 8888
+EXPOSE 8888 22
 
 CMD ["python", "-m", "uvicorn", "src.server:app", "--host", "0.0.0.0", "--port", "8888"]
 
@@ -76,17 +91,17 @@ WORKDIR /workspace
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        git \
-        make \
-        build-essential \
-        gnupg \
+    ca-certificates \
+    curl \
+    git \
+    make \
+    build-essential \
+    gnupg \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
-        > /etc/apt/sources.list.d/nodesource.list \
+    > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
