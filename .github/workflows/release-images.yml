@@ -17,12 +17,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - image: backend-lite
+            image_suffix: -backend-lite
+            target: fastapi
           - image: backend
             image_suffix: -backend
-            target: fastapi
-          - image: hybrid
-            image_suffix: ''
-            target: combo
+            target: backend
+          - image: full
+            image_suffix: ""
+            target: default
 
     steps:
       - name: Check out repository
